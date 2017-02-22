@@ -17,6 +17,22 @@ import org.argus.jawa.core._
 import org.sireum.util._
 
 /**
+  * Retrieve URL from connectionInputStream.
+  *
+  * Code:
+  *
+  * private void get() {
+        try {
+            URL url = new URL("http://www.arguslab.org/");
+            URLConnection urlConnection = url.openConnection();
+            BufferedReader in = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
+            String line = in.readLine();
+            Log.d("data", line);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+  *
   * Created by fgwei on 2/22/17.
   */
 object RetriveStringFromSourceOrSink {
@@ -112,7 +128,7 @@ object RetriveStringFromSourceOrSink {
                 val urlValues = idfg.ptaresult.pointsToSet(urlSlot, connValue.defSite)
                 urlValues foreach {
                   urlValue =>
-                    println("URL value at " + node + " is: " + urlMap.getOrElse(urlValue.defSite, msetEmpty))
+                    println("URL value at " + node.descriptor + "@" + node.node.getContext.getLocUri + "\nis:\n" + urlMap.getOrElse(urlValue.defSite, msetEmpty).mkString("\n"))
                 }
             }
         }
