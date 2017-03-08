@@ -1,7 +1,36 @@
-name := "Argus-SAF-playground"
+import Common._
+import sbt.Keys._
+import sbtassembly.AssemblyPlugin.autoImport._
+import sbtbuildinfo.BuildInfoPlugin.autoImport._
 
-version := "1.0"
+val argusSafPlaySettings = Defaults.coreDefaultSettings ++ Seq(
+  libraryDependencies += "org.scala-lang" % "scala-compiler" % ArgusVersions.scalaVersion,
+  scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
+)
+val buildInfoSettings = Seq(
+  // build info
+  buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
+  buildInfoPackage := "org.argus"
+)
+val assemblySettings = Seq(
+  assemblyJarName in assembly := s"${name.value}-${version.value}-assembly.jar",
+  mainClass in assembly := Some("org.argus.play.Main")
+)
 
-scalaVersion := "2.11.8"
 
-libraryDependencies += "com.github.arguslab" %% "amandroid-core" % "1.1.5"
+lazy val argus_saf_play: Project =
+  newProject("Argus-SAF-playground", file("."))
+    .enablePlugins(BuildInfoPlugin)
+    .settings(libraryDependencies ++= DependencyGroups.saf_play)
+    .settings(argusSafPlaySettings)
+    .settings(buildInfoSettings)
+    .settings(assemblySettings)
+    .settings(
+      artifact in (Compile, assembly) ~= { art =>
+        art.copy(`classifier` = Some("assembly"))
+      },
+      addArtifact(artifact in (Compile, assembly), assembly),
+      publishArtifact in (Compile, packageBin) := false,
+      publishArtifact in (Compile, packageDoc) := false,
+      publishArtifact in (Compile, packageSrc) := false
+    )

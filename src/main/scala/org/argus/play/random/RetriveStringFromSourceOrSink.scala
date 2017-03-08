@@ -14,6 +14,7 @@ import org.argus.jawa.alir.dataDependenceAnalysis.InterproceduralDataDependenceA
 import org.argus.jawa.alir.pta.{PTAConcreteStringInstance, VarSlot}
 import org.argus.jawa.alir.pta.reachingFactsAnalysis.RFAFactFactory
 import org.argus.jawa.core._
+import org.argus.play.util.Utils
 import org.sireum.util._
 
 /**
@@ -36,25 +37,6 @@ import org.sireum.util._
   * Created by fgwei on 2/22/17.
   */
 object RetriveStringFromSourceOrSink {
-  def loadCode(apkUri: FileResourceUri, settings: DecompilerSettings, global: Global): (FileResourceUri, ISet[String]) = {
-    val (outUri, srcs, _) = ApkDecompiler.decompile(apkUri, settings)
-    srcs foreach {
-      src =>
-        val fileUri = FileUtil.toUri(FileUtil.toFilePath(outUri) + File.separator + src)
-        if(FileUtil.toFile(fileUri).exists()) {
-          //store the app's jawa code in global which is organized class by class.
-          global.load(fileUri, Constants.JAWA_FILE_EXT, AndroidLibraryAPISummary)
-        }
-    }
-    (outUri, srcs)
-  }
-
-  def loadApk(apkUri: FileResourceUri, settings: DecompilerSettings, global: Global): Apk = {
-    val (outUri, srcs) = loadCode(apkUri, settings, global)
-    val apk = new Apk(apkUri, outUri, srcs)
-    AppInfoCollector.collectInfo(apk, global, outUri)
-    apk
-  }
 
   def main(args: Array[String]): Unit = {
     val fileUri = FileUtil.toUri(getClass.getResource("/random/ReadInternet.apk").getPath)
@@ -71,7 +53,7 @@ object RetriveStringFromSourceOrSink {
       AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
       dexLog = false, debugMode = false, removeSupportGen = true,
       forceDelete = false, None, layout)
-    val apk = loadApk(fileUri, settings, global)
+    val apk = Utils.loadApk(fileUri, settings, global)
 
 
     /******************* Do Taint analysis *********************/
