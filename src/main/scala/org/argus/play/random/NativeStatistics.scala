@@ -1,21 +1,36 @@
 package org.argus.play.random
 
-import java.io.FileWriter
+import java.io.{File, FileWriter}
 
 import org.apache.commons.lang3.StringUtils
 import org.argus.amandroid.core.{AndroidGlobalConfig, Apk}
 import org.argus.amandroid.core.decompile.{ConverterUtil, DecompileLayout, DecompilerSettings}
+import org.argus.amandroid.core.dedex.PilarStyleCodeGeneratorListener
 import org.argus.amandroid.core.util.ApkFileUtil
-import org.argus.jawa.core.util.MyFileUtil
+import org.argus.jawa.core.util.{MyFileUtil, MyTimeout}
 import org.argus.jawa.core._
+import org.argus.play.cli.util.CliLogger
 import org.argus.play.util.Utils
 import org.ini4j.Wini
 import org.sireum.util._
+
+import scala.concurrent.duration._
+
 
 /**
   * Generate the statistics of native lib usage from given dataset.
   */
 object NativeStatistics {
+
+  class DecompileTimer(time: FiniteDuration) extends PilarStyleCodeGeneratorListener {
+    val timer = new MyTimeout(time)
+    override def onRecordGenerated(recType: JawaType, code: String, outputUri: Option[FileResourceUri]): Unit = {
+      timer.isTimeoutThrow()
+    }
+
+    override def onGenerateEnd(recordCount: Int): Unit = {}
+  }
+
   def apply(sourcePath: String, outputPath: String): Unit = {
     val pathUri = FileUtil.toUri(sourcePath)
     val outputUri = FileUtil.toUri(outputPath)
@@ -27,9 +42,9 @@ object NativeStatistics {
       i += 1
       println(i + " of " + decs.size + ":####" + fileUri + "####")
       if(Apk.isDecompilable(fileUri)) {
-        var outApkUri: FileResourceUri = null
+        var outApkUri: FileResourceUri = ApkFileUtil.getOutputUri(fileUri, outputUri)
         try {
-          /** ***************** Load given Apk *********************/
+          /******************* Load given Apk *********************/
           val reporter = new DefaultReporter
           // Global is the class loader and class path manager
           val global = new Global(fileUri, reporter)
@@ -38,14 +53,14 @@ object NativeStatistics {
           val settings = DecompilerSettings(
             AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
             dexLog = false, debugMode = false, removeSupportGen = true,
-            forceDelete = false, None, layout)
+            forceDelete = false, Some(new DecompileTimer(5 minutes)), layout)
           val apk = Utils.loadApk(fileUri, settings, global)
           outApkUri = apk.outApkUri
 
-          /** ***************** Get all .so files *********************/
+          /******************* Get all .so files *********************/
           val so_files = FileUtil.listFiles(apk.outApkUri, ".so", recursive = true)
 
-          /** ***************** Get all native methods and Runtime.exec *********************/
+          /******************* Get all native methods and Runtime.exec *********************/
           val native_methods: MSet[Signature] = msetEmpty
           var execs = 0
           global.getApplicationClassCodes foreach { case (typ, sf) =>
@@ -54,12 +69,12 @@ object NativeStatistics {
             execs += StringUtils.countMatches(sf.code, "`java.lang.Runtime.exec`")
           }
 
-          /** ***************** Get NativeActivities *********************/
+          /******************* Get NativeActivities *********************/
           val native_acts = apk.getComponentInfos.map(_.compType).filter { a =>
             global.getClassHierarchy.isClassRecursivelySubClassOfIncluding(a, new JawaType("android.app.NativeActivity"))
           }
 
-          /** ***************** Write report *********************/
+          /******************* Write report *********************/
           val report_fileuri = MyFileUtil.appendFileName(outputUri, "report" + i + ".ini")
           val writer = new FileWriter(FileUtil.toFile(report_fileuri), false)
           try {
@@ -78,7 +93,7 @@ object NativeStatistics {
           }
         } catch {
           case e: Exception =>
-            e.printStackTrace()
+            CliLogger.logError(new File(outputPath), "Error: ", e)
         } finally {
           if (outApkUri != null) {
             ConverterUtil.cleanDir(outApkUri)
@@ -108,7 +123,7 @@ object NativeStatistics {
       FileUtil.listFiles(reportsUri, ".ini", recursive = true).foreach { iniUri =>
         total += 1
         val ini = new Wini(FileUtil.toFile(iniUri))
-        val name: String = ini.get("apk", "name", classOf[String])
+//        val name: String = ini.get("apk", "name", classOf[String])
         val so_files: ISet[FileResourceUri] = ini.get("apk", "so_files", classOf[FileResourceUri]).split(",").toSet.filter(_.nonEmpty)
         val native_acts: ISet[JawaType] = ini.get("apk", "native_activities", classOf[String]).split(",").toSet.filter(_.nonEmpty).map(new JawaType(_))
         val native_methods: ISet[Signature] = ini.get("apk", "native_methods", classOf[String]).split(",").toSet.filter(_.nonEmpty).map(new Signature(_))
