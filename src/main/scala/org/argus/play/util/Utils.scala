@@ -26,10 +26,11 @@ object Utils {
     (outUri, srcs)
   }
 
-  def loadApk(apkUri: FileResourceUri, settings: DecompilerSettings, global: Global): Apk = {
+  def loadApk(apkUri: FileResourceUri, settings: DecompilerSettings, global: Global, collectInfo: Boolean): Apk = {
     val (outUri, srcs) = loadCode(apkUri, settings, global)
     val apk = new Apk(apkUri, outUri, srcs)
-    AppInfoCollector.collectInfo(apk, global, outUri)
+    if(collectInfo)
+      AppInfoCollector.collectInfo(apk, global, outUri)
     apk
   }
 }

@@ -53,7 +53,7 @@ object RetriveStringFromSourceOrSink {
       AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
       dexLog = false, debugMode = false, removeSupportGen = true,
       forceDelete = false, None, layout)
-    val apk = Utils.loadApk(fileUri, settings, global)
+    val apk = Utils.loadApk(fileUri, settings, global, true)
 
 
     /******************* Do Taint analysis *********************/

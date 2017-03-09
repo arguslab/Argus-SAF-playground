@@ -54,7 +54,7 @@ object NativeStatistics {
             AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
             dexLog = false, debugMode = false, removeSupportGen = true,
             forceDelete = false, Some(new DecompileTimer(5 minutes)), layout)
-          val apk = Utils.loadApk(fileUri, settings, global)
+          val apk = Utils.loadApk(fileUri, settings, global, collectInfo = false)
           outApkUri = apk.outApkUri
 
           /******************* Get all .so files *********************/
@@ -92,7 +92,7 @@ object NativeStatistics {
             writer.close()
           }
         } catch {
-          case e: Exception =>
+          case e: Throwable =>
             CliLogger.logError(new File(outputPath), "Error: ", e)
         } finally {
           if (outApkUri != null) {
@@ -156,6 +156,8 @@ object NativeStatistics {
     val nm_object_per = nativeMethod_object.toFloat / nativeMethod_total
     val avg_nm = average(nativeMethods)
 
+    println("total: " + total + "\nhaveNative: " + haveNative + "\nhaveSo: " + haveSo + "\nhaveNativeMethod: " + haveNativeMethod + "\nhaveNativeActivity: " + haveNativeActivity + "\nhaveExec: " + haveExec + "\nnativeMethod_total: " + nativeMethod_total + "\nnativeMethod_passdata: " + nativeMethod_passdata + "\nnativeMethod_object: " + nativeMethod_object)
+    println()
     println("haveNative_per: " + haveNative_per + "\nhaveNativeMethod_per: " + haveNativeMethod_per + "\nhaveSo_per: " + haveSo_per + "\nhaveNativeActivity_per: " + haveNativeActivity_per + "\nhaveExec_per: " + haveExec_per + "\nnm_passdata_per: " + nm_passdata_per + "\nnm_object_per: " + nm_object_per + "\navg_nm: " + avg_nm)
     println()
     println("so_files: \n" + sofiles.mkString("\n"))
