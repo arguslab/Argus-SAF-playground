@@ -1,20 +1,16 @@
 package org.argus.play.random
 
-import java.io.File
-
+import org.argus.amandroid.alir.componentSummary.ApkYard
 import org.argus.amandroid.alir.pta.reachingFactsAnalysis.{AndroidRFAConfig, AndroidReachingFactsAnalysis}
 import org.argus.amandroid.alir.taintAnalysis.{AndroidDataDependentTaintAnalysis, DataLeakageAndroidSourceAndSinkManager}
-import org.argus.amandroid.core.{AndroidGlobalConfig, Apk}
-import org.argus.amandroid.core.appInfo.AppInfoCollector
-import org.argus.amandroid.core.decompile.{ApkDecompiler, DecompileLayout, DecompilerSettings}
-import org.argus.amandroid.core.util.AndroidLibraryAPISummary
+import org.argus.amandroid.core.AndroidGlobalConfig
+import org.argus.amandroid.core.decompile.{DecompileLayout, DecompilerSettings}
 import org.argus.jawa.alir.Context
 import org.argus.jawa.alir.controlFlowGraph.{ICFGCallNode, ICFGInvokeNode}
 import org.argus.jawa.alir.dataDependenceAnalysis.InterproceduralDataDependenceAnalysis
 import org.argus.jawa.alir.pta.{PTAConcreteStringInstance, VarSlot}
 import org.argus.jawa.alir.pta.reachingFactsAnalysis.RFAFactFactory
 import org.argus.jawa.core._
-import org.argus.play.util.Utils
 import org.sireum.util._
 
 /**
@@ -45,29 +41,26 @@ object RetriveStringFromSourceOrSink {
     /******************* Load APK *********************/
 
     val reporter = new DefaultReporter
-    // Global is the class loader and class path manager
-    val global = new Global(fileUri, reporter)
-    global.setJavaLib(AndroidGlobalConfig.settings.lib_files)
+    val yard = new ApkYard(reporter)
     val layout = DecompileLayout(outputUri)
     val settings = DecompilerSettings(
       AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
       dexLog = false, debugMode = false, removeSupportGen = true,
       forceDelete = false, None, layout)
-    val apk = Utils.loadApk(fileUri, settings, global, true)
-
+    val apk = yard.loadApk(fileUri, settings)
 
     /******************* Do Taint analysis *********************/
 
-    val component = apk.getComponents.head // get any component you want to perform analysis
-    apk.getEnvMap.get(component) match {
+    val component = apk.model.getComponents.head // get any component you want to perform analysis
+    apk.model.getEnvMap.get(component) match {
       case Some((esig, _)) =>
-        val ep = global.getMethod(esig).get
+        val ep = apk.getMethod(esig).get
         implicit val factory = new RFAFactFactory
         val initialfacts = AndroidRFAConfig.getInitialFactsForMainEnvironment(ep)
-        val idfg = AndroidReachingFactsAnalysis(global, apk, ep, initialfacts, new ClassLoadManager, timeout = None)
-        val iddResult = InterproceduralDataDependenceAnalysis(global, idfg)
-        val ssm = new DataLeakageAndroidSourceAndSinkManager(global, apk, apk.getLayoutControls, apk.getCallbackMethods, AndroidGlobalConfig.settings.sas_file)
-        val taint_analysis_result = AndroidDataDependentTaintAnalysis(global, iddResult, idfg.ptaresult, ssm)
+        val idfg = AndroidReachingFactsAnalysis(apk, ep, initialfacts, new ClassLoadManager, new Context(apk.nameUri), timeout = None)
+        val iddResult = InterproceduralDataDependenceAnalysis(apk, idfg)
+        val ssm = new DataLeakageAndroidSourceAndSinkManager(AndroidGlobalConfig.settings.sas_file)
+        val taint_analysis_result = AndroidDataDependentTaintAnalysis(yard, iddResult, idfg.ptaresult, ssm)
 
         /******************* Resolve all URL value *********************/
 
@@ -115,7 +108,7 @@ object RetriveStringFromSourceOrSink {
             }
         }
       case None =>
-        global.reporter.error("TaintAnalysis", "Component " + component + " did not have environment! Some package or name mismatch maybe in the Manifest file.")
+        yard.reporter.error("TaintAnalysis", "Component " + component + " did not have environment! Some package or name mismatch maybe in the Manifest file.")
     }
   }
 }

@@ -3,7 +3,7 @@ package org.argus.play.random
 import java.io.{File, FileWriter}
 
 import org.apache.commons.lang3.StringUtils
-import org.argus.amandroid.core.{AndroidGlobalConfig, Apk}
+import org.argus.amandroid.core.{AndroidGlobalConfig, ApkGlobal}
 import org.argus.amandroid.core.decompile.{ConverterUtil, DecompileLayout, DecompilerSettings}
 import org.argus.amandroid.core.dedex.PilarStyleCodeGeneratorListener
 import org.argus.amandroid.core.util.ApkFileUtil
@@ -31,7 +31,7 @@ object NativeStatistics {
     override def onGenerateEnd(recordCount: Int): Unit = {}
   }
 
-  def apply(sourcePath: String, outputPath: String): Unit = {
+  def apply(sourcePath: String, outputPath: String, startNum: Int): Unit = {
     val pathUri = FileUtil.toUri(sourcePath)
     val outputUri = FileUtil.toUri(outputPath)
 
@@ -40,64 +40,63 @@ object NativeStatistics {
     var i = 0
     decs foreach { fileUri =>
       i += 1
-      println(i + " of " + decs.size + ":####" + fileUri + "####")
-      if(Apk.isDecompilable(fileUri)) {
-        var outApkUri: FileResourceUri = ApkFileUtil.getOutputUri(fileUri, outputUri)
-        try {
-          /******************* Load given Apk *********************/
-          val reporter = new DefaultReporter
-          // Global is the class loader and class path manager
-          val global = new Global(fileUri, reporter)
-          global.setJavaLib(AndroidGlobalConfig.settings.lib_files)
-          val layout = DecompileLayout(outputUri)
-          val settings = DecompilerSettings(
-            AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
-            dexLog = false, debugMode = false, removeSupportGen = true,
-            forceDelete = false, Some(new DecompileTimer(5 minutes)), layout)
-          val apk = Utils.loadApk(fileUri, settings, global, collectInfo = false)
-          outApkUri = apk.outApkUri
-
-          /******************* Get all .so files *********************/
-          val so_files = FileUtil.listFiles(apk.outApkUri, ".so", recursive = true)
-
-          /******************* Get all native methods and Runtime.exec *********************/
-          val native_methods: MSet[Signature] = msetEmpty
-          var execs = 0
-          global.getApplicationClassCodes foreach { case (typ, sf) =>
-            val mc = global.getMyClass(typ).get
-            native_methods ++= mc.methods.filter(m => AccessFlag.isNative(m.accessFlag)).map(_.signature)
-            execs += StringUtils.countMatches(sf.code, "`java.lang.Runtime.exec`")
-          }
-
-          /******************* Get NativeActivities *********************/
-          val native_acts = apk.getComponentInfos.map(_.compType).filter { a =>
-            global.getClassHierarchy.isClassRecursivelySubClassOfIncluding(a, new JawaType("android.app.NativeActivity"))
-          }
-
-          /******************* Write report *********************/
-          val report_fileuri = MyFileUtil.appendFileName(outputUri, "report" + i + ".ini")
-          val writer = new FileWriter(FileUtil.toFile(report_fileuri), false)
+      if(i >= startNum) {
+        println(i + " of " + decs.size + ":####" + fileUri + "####")
+        if (ApkGlobal.isDecompilable(fileUri)) {
+          var outApkUri: FileResourceUri = ApkFileUtil.getOutputUri(fileUri, outputUri)
           try {
-            writer.write("[apk]\n")
-            writer.write("name = " + fileUri + "\n")
-            writer.write("so_files = " + so_files.mkString(",") + "\n")
-            writer.write("native_activities = " + native_acts.mkString(",") + "\n")
-            writer.write("native_methods = " + native_methods.mkString(",") + "\n")
-            writer.write("exec = " + execs + "\n")
-            writer.close()
+            /** ***************** Load given Apk *********************/
+            val reporter = new DefaultReporter
+            val layout = DecompileLayout(outputUri)
+            val settings = DecompilerSettings(
+              AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
+              dexLog = false, debugMode = false, removeSupportGen = true,
+              forceDelete = false, Some(new DecompileTimer(5 minutes)), layout)
+            val apk = Utils.loadApk(fileUri, settings, collectInfo = false, reporter)
+            outApkUri = apk.model.outApkUri
+
+            /** ***************** Get all .so files *********************/
+            val so_files = FileUtil.listFiles(outApkUri, ".so", recursive = true)
+
+            /** ***************** Get all native methods and Runtime.exec *********************/
+            val native_methods: MSet[Signature] = msetEmpty
+            var execs = 0
+            apk.getApplicationClassCodes foreach { case (typ, sf) =>
+              val mc = apk.getMyClass(typ).get
+              native_methods ++= mc.methods.filter(m => AccessFlag.isNative(m.accessFlag)).map(_.signature)
+              execs += StringUtils.countMatches(sf.code, "`java.lang.Runtime.exec`")
+            }
+
+            /** ***************** Get NativeActivities *********************/
+            val native_acts = apk.model.getComponentInfos.map(_.compType).filter { a =>
+              apk.getClassHierarchy.isClassRecursivelySubClassOfIncluding(a, new JawaType("android.app.NativeActivity"))
+            }
+
+            /** ***************** Write report *********************/
+            val report_fileuri = MyFileUtil.appendFileName(outputUri, "report" + i + ".ini")
+            val writer = new FileWriter(FileUtil.toFile(report_fileuri), false)
+            try {
+              writer.write("[apk]\n")
+              writer.write("name = " + fileUri + "\n")
+              writer.write("so_files = " + so_files.mkString(",") + "\n")
+              writer.write("native_activities = " + native_acts.mkString(",") + "\n")
+              writer.write("native_methods = " + native_methods.mkString(",") + "\n")
+              writer.write("exec = " + execs + "\n")
+              writer.close()
+            } catch {
+              case e: Exception =>
+                throw e
+            } finally {
+              writer.close()
+            }
           } catch {
-            case e: Exception =>
-              throw e
+            case e: Throwable =>
+              CliLogger.logError(new File(outputPath), "Error: ", e)
           } finally {
-            writer.close()
-          }
-        } catch {
-          case e: Throwable =>
-            CliLogger.logError(new File(outputPath), "Error: ", e)
-        } finally {
-          if (outApkUri != null) {
-            ConverterUtil.cleanDir(outApkUri)
-            FileUtil.toFile(outApkUri).delete()
+            if (outApkUri != null) {
+              ConverterUtil.cleanDir(outApkUri)
+              FileUtil.toFile(outApkUri).delete()
+            }
           }
         }
       }

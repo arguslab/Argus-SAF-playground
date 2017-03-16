@@ -20,11 +20,14 @@ object Main extends App {
     // create options
     val versionOption: Option = Option.builder().longOpt("version").desc("Prints the version then exits.").build()
 
+    val startNumOption: Option = Option.builder("n").longOpt("num").desc("Start from num file in the list.").hasArg(true).argName("startNum").build()
     val genReportOption: Option = Option.builder("g").longOpt("gen").desc("Generate native lib usage report.").build()
-    val caculateOption: Option = Option.builder("c").longOpt("calculate").desc("Caculate native lib usage statistics.").build()
+    val caculateOption: Option = Option.builder("c").longOpt("calculate").desc("Calculate native lib usage statistics.").build()
+    nativeStatisticsOptions.addOption(startNumOption)
     nativeStatisticsOptions.addOption(genReportOption)
     nativeStatisticsOptions.addOption(caculateOption)
     allOptions.addOption(versionOption)
+    allOptions.addOption(startNumOption)
     allOptions.addOption(genReportOption)
     allOptions.addOption(caculateOption)
   }
@@ -91,8 +94,12 @@ object Main extends App {
   private def cmdNativeStatistics(cli: CommandLine) = {
     var outputPath: String = "."
     var sourcePath: String = null
+    var startNum: Int = 0
     var genReport: Boolean = false
     var cacReport: Boolean = false
+    if(cli.hasOption("n") || cli.hasOption("num")) {
+      startNum = Integer.parseInt(cli.getOptionValue("n"))
+    }
     if(cli.hasOption("g") || cli.hasOption("gen")) {
       genReport = true
     }
@@ -108,7 +115,7 @@ object Main extends App {
         System.exit(0)
     }
     if(genReport)
-      NativeStatistics(sourcePath, outputPath)
+      NativeStatistics(sourcePath, outputPath, startNum)
     if(cacReport)
       NativeStatistics(outputPath)
   }
