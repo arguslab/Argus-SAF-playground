@@ -1,7 +1,7 @@
 package org.argus.play
 
 import org.apache.commons.cli._
-import org.argus.play.random.NativeStatistics
+import org.argus.play.random.{CountComponentNum, NativeStatistics}
 
 /**
   * Created by fgwei on 3/8/17.
@@ -10,7 +10,7 @@ object Main extends App {
   private val version = org.argus.BuildInfo.version
 
   object Mode extends Enumeration {
-    val ARGUS_SAF_PLAY, NATIVE_STATISTICS = Value
+    val ARGUS_SAF_PLAY, NATIVE_STATISTICS, COUNT_COMPONENT_NUM = Value
   }
 
   private val nativeStatisticsOptions: Options = new Options
@@ -41,10 +41,13 @@ object Main extends App {
                    |Copyright 2017 Argus Laboratory, University of South Florida""".stripMargin)
         println("")
         println("""Available Modes:
-                  |  n[ative_statistics]    Generate statistics for native lib usage of given dataset.""".stripMargin)
+                  |  n[ative_statistics]    Generate statistics for native lib usage of given dataset.
+                  |  c[ount_component_num]  Count component numbers for given apks.""".stripMargin)
         println("")
       case Mode.NATIVE_STATISTICS =>
         formatter.printHelp("n[ative_statistics] <file_apk/dir> <output_dir>", nativeStatisticsOptions)
+      case Mode.COUNT_COMPONENT_NUM =>
+        println("c[ount_component_num] <file_apk/dir> <output_dir> <file>")
     }
   }
 
@@ -71,6 +74,9 @@ object Main extends App {
     for (opt <- commandLine.getArgs) {
       if (opt.equalsIgnoreCase("n") || opt.equalsIgnoreCase("native_statistics")) {
         cmdNativeStatistics(commandLine)
+        cmdFound = true
+      } else if (opt.equalsIgnoreCase("c") || opt.equalsIgnoreCase("count_component_num")) {
+        cmdCountComponentNum(commandLine)
         cmdFound = true
       }
     }
@@ -118,5 +124,21 @@ object Main extends App {
       NativeStatistics(sourcePath, outputPath, startNum)
     if(cacReport)
       NativeStatistics(outputPath)
+  }
+
+  private def cmdCountComponentNum(cli: CommandLine) = {
+    var outputPath: String = "."
+    var sourcePath: String = null
+    var file: String = null
+    try {
+      sourcePath = cli.getArgList.get(1)
+      outputPath = cli.getArgList.get(2)
+      file = cli.getArgList.get(3)
+    } catch {
+      case _: Exception =>
+        usage(Mode.COUNT_COMPONENT_NUM)
+        System.exit(0)
+    }
+    CountComponentNum(sourcePath, outputPath, file)
   }
 }

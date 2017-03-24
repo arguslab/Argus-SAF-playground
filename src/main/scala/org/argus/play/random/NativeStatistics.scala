@@ -5,15 +5,16 @@ import java.io.{File, FileWriter}
 import org.apache.commons.lang3.StringUtils
 import org.argus.amandroid.core.{AndroidGlobalConfig, ApkGlobal}
 import org.argus.amandroid.core.decompile.{ConverterUtil, DecompileLayout, DecompilerSettings}
-import org.argus.amandroid.core.dedex.PilarStyleCodeGeneratorListener
+import org.argus.amandroid.core.dedex.DecompileTimer
 import org.argus.amandroid.core.util.ApkFileUtil
-import org.argus.jawa.core.util.{MyFileUtil, MyTimeout}
+import org.argus.jawa.core.util.MyFileUtil
 import org.argus.jawa.core._
 import org.argus.play.cli.util.CliLogger
 import org.argus.play.util.Utils
 import org.ini4j.Wini
 import org.sireum.util._
 
+import scala.language.postfixOps
 import scala.concurrent.duration._
 
 
@@ -21,15 +22,6 @@ import scala.concurrent.duration._
   * Generate the statistics of native lib usage from given dataset.
   */
 object NativeStatistics {
-
-  class DecompileTimer(time: FiniteDuration) extends PilarStyleCodeGeneratorListener {
-    val timer = new MyTimeout(time)
-    override def onRecordGenerated(recType: JawaType, code: String, outputUri: Option[FileResourceUri]): Unit = {
-      timer.isTimeoutThrow()
-    }
-
-    override def onGenerateEnd(recordCount: Int): Unit = {}
-  }
 
   def apply(sourcePath: String, outputPath: String, startNum: Int): Unit = {
     val pathUri = FileUtil.toUri(sourcePath)
@@ -51,7 +43,7 @@ object NativeStatistics {
             val settings = DecompilerSettings(
               AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
               dexLog = false, debugMode = false, removeSupportGen = true,
-              forceDelete = false, Some(new DecompileTimer(5 minutes)), layout)
+              forceDelete = true, Some(new DecompileTimer(5 minutes)), layout)
             val apk = Utils.loadApk(fileUri, settings, collectInfo = false, reporter)
             outApkUri = apk.model.outApkUri
 
@@ -115,6 +107,7 @@ object NativeStatistics {
     var nativeMethod_passdata: Int = 0
     var nativeMethod_object: Int = 0
     val sofiles: MSet[String] = msetEmpty
+    val archis: MMap[String, Int] = mmapEmpty
     val passObjects: MSet[JawaType] = msetEmpty
     val nativeMethods: MSet[Int] = msetEmpty
     try {
@@ -137,7 +130,12 @@ object NativeStatistics {
         nativeMethod_object += native_methods.count(_.getObjectParameters.nonEmpty)
         if (native_acts.nonEmpty) haveNativeActivity += 1
         if (execs != 0) haveExec += 1
-        sofiles ++= so_files.map(FileUtil.toFile(_).getName)
+        so_files.foreach{ file =>
+          val f = FileUtil.toFile(file)
+          sofiles += f.getName
+          val i = archis.getOrElseUpdate(f.getParentFile.getName, 0) + 1
+          archis.put(f.getParentFile.getName, i)
+        }
         native_methods.foreach { method =>
           passObjects ++= method.getObjectParameters.values
         }
@@ -160,6 +158,8 @@ object NativeStatistics {
     println("haveNative_per: " + haveNative_per + "\nhaveNativeMethod_per: " + haveNativeMethod_per + "\nhaveSo_per: " + haveSo_per + "\nhaveNativeActivity_per: " + haveNativeActivity_per + "\nhaveExec_per: " + haveExec_per + "\nnm_passdata_per: " + nm_passdata_per + "\nnm_object_per: " + nm_object_per + "\navg_nm: " + avg_nm)
     println()
     println("so_files: \n" + sofiles.mkString("\n"))
+    println()
+    println("architectures: \n" + archis.map{case (k, v) => k + ":" + v}.mkString("\n"))
     println()
     println("nm_objects: \n" + passObjects.mkString("\n"))
   }
