@@ -28,7 +28,9 @@ object CountComponentNum {
     val map: MMap[String, String] = mmapEmpty
     for(line <- Source.fromFile(file).getLines()) {
       val parts = line.split(" ")
-      map(parts.head) = parts(1).substring(0, parts(1).length - 1)
+      var secs = parts(1)
+      secs = secs.replace("s", "")
+      map(parts.head) = secs
     }
 
     /******************* Get all Apks *********************/
