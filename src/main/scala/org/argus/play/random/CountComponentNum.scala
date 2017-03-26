@@ -2,15 +2,20 @@ package org.argus.play.random
 
 import java.io.{File, FileWriter}
 
+import org.argus.amandroid.core.AndroidGlobalConfig
 import org.argus.amandroid.core.appInfo.AppInfoCollector
-import org.argus.amandroid.core.decompile.{ApkDecompiler, ConverterUtil}
+import org.argus.amandroid.core.decompile.{ConverterUtil, DecompileLayout, DecompilerSettings}
+import org.argus.amandroid.core.dedex.DecompileTimer
 import org.argus.amandroid.core.util.ApkFileUtil
 import org.argus.jawa.core.DefaultReporter
 import org.argus.jawa.core.util.MyFileUtil
 import org.argus.play.cli.util.CliLogger
+import org.argus.play.util.Utils
 import org.sireum.util._
 
 import scala.io.Source
+import scala.language.postfixOps
+import scala.concurrent.duration._
 
 /**
   * Created by fgwei on 3/22/17.
@@ -37,15 +42,20 @@ object CountComponentNum {
         var outApkUri: FileResourceUri = ApkFileUtil.getOutputUri(fileUri, outputUri)
         try {
           /** ***************** Load given Apk *********************/
-          val outUri = ApkDecompiler.decodeApk(fileUri, outputUri, forceDelete = true, createFolder = true, "src")
-          val manifestUri = MyFileUtil.appendFileName(outUri, "AndroidManifest.xml")
+          val layout = DecompileLayout(outputUri)
+          val settings = DecompilerSettings(
+            AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
+            dexLog = false, debugMode = false, removeSupportGen = true,
+            forceDelete = true, Some(new DecompileTimer(5 minutes)), layout)
+          val apk = Utils.loadApk(fileUri, settings, collectInfo = false, new DefaultReporter)
+          val manifestUri = MyFileUtil.appendFileName(apk.model.outApkUri, "AndroidManifest.xml")
           val mfp = AppInfoCollector.analyzeManifest(new DefaultReporter, manifestUri)
 
           /** ***************** Write report *********************/
           val report_fileuri = MyFileUtil.appendFileName(outputUri, "report.txt")
           val writer = new FileWriter(FileUtil.toFile(report_fileuri), true)
           try {
-            writer.write(fileName + " " + map(fileName) + " " + mfp.getComponentInfos.size + "\n")
+            writer.write(fileName + " " + map(fileName) + " " + mfp.getComponentInfos.size + " " + apk.getApplicationClassCodes.values.map(_.code.split("[\n|\r]").length).sum + "\n")
           } catch {
             case e: Exception =>
               throw e

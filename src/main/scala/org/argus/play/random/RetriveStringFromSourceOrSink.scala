@@ -19,16 +19,16 @@ import org.sireum.util._
   * Code:
   *
   * private void get() {
-        try {
-            URL url = new URL("http://www.arguslab.org/");
-            URLConnection urlConnection = url.openConnection();
-            BufferedReader in = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
-            String line = in.readLine();
-            Log.d("data", line);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+  *     try {
+  *         URL url = new URL("http://www.arguslab.org/");
+  *         URLConnection urlConnection = url.openConnection();
+  *         BufferedReader in = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
+  *         String line = in.readLine();
+  *         Log.d("data", line);
+  *     } catch (IOException e) {
+  *         e.printStackTrace();
+  *     }
+  * }
   *
   * Created by fgwei on 2/22/17.
   */
