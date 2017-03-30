@@ -1,19 +1,21 @@
 package org.argus.play.random
 
-import java.io.{File, FileWriter}
+import java.io.FileWriter
+import java.util.concurrent.TimeoutException
 
 import org.apache.commons.lang3.StringUtils
 import org.argus.amandroid.core.{AndroidGlobalConfig, ApkGlobal}
 import org.argus.amandroid.core.decompile.{ConverterUtil, DecompileLayout, DecompilerSettings}
 import org.argus.amandroid.core.dedex.DecompileTimer
-import org.argus.amandroid.core.util.ApkFileUtil
-import org.argus.jawa.core.util.MyFileUtil
+import org.argus.jawa.core.util.{FutureUtil, MyFileUtil}
 import org.argus.jawa.core._
 import org.argus.play.cli.util.CliLogger
 import org.argus.play.util.Utils
 import org.ini4j.Wini
 import org.sireum.util._
 
+import scala.concurrent.Await
+import scala.concurrent.ExecutionContext.Implicits.{global => sc}
 import scala.language.postfixOps
 import scala.concurrent.duration._
 
@@ -35,62 +37,81 @@ object NativeStatistics {
       if(i >= startNum) {
         println(i + " of " + decs.size + ":####" + fileUri + "####")
         if (ApkGlobal.isDecompilable(fileUri)) {
-          var outApkUri: FileResourceUri = ApkFileUtil.getOutputUri(fileUri, outputUri)
+          val (f, cancel) = FutureUtil.interruptableFuture[Unit] { () =>
+            collectNative(i, fileUri, outputUri)
+          }
           try {
-            /** ***************** Load given Apk *********************/
-            val reporter = new DefaultReporter
-            val layout = DecompileLayout(outputUri)
-            val settings = DecompilerSettings(
-              AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
-              dexLog = false, debugMode = false, removeSupportGen = true,
-              forceDelete = true, Some(new DecompileTimer(5 minutes)), layout)
-            val apk = Utils.loadApk(fileUri, settings, collectInfo = false, reporter)
-            outApkUri = apk.model.outApkUri
-
-            /** ***************** Get all .so files *********************/
-            val so_files = FileUtil.listFiles(outApkUri, ".so", recursive = true)
-
-            /** ***************** Get all native methods and Runtime.exec *********************/
-            val native_methods: MSet[Signature] = msetEmpty
-            var execs = 0
-            apk.getApplicationClassCodes foreach { case (typ, sf) =>
-              val mc = apk.getMyClass(typ).get
-              native_methods ++= mc.methods.filter(m => AccessFlag.isNative(m.accessFlag)).map(_.signature)
-              execs += StringUtils.countMatches(sf.code, "`java.lang.Runtime.exec`")
-            }
-
-            /** ***************** Get NativeActivities *********************/
-            val native_acts = apk.model.getComponentInfos.map(_.compType).filter { a =>
-              apk.getClassHierarchy.isClassRecursivelySubClassOfIncluding(a, new JawaType("android.app.NativeActivity"))
-            }
-
-            /** ***************** Write report *********************/
-            val report_fileuri = MyFileUtil.appendFileName(outputUri, "report" + i + ".ini")
-            val writer = new FileWriter(FileUtil.toFile(report_fileuri), false)
-            try {
-              writer.write("[apk]\n")
-              writer.write("name = " + fileUri + "\n")
-              writer.write("so_files = " + so_files.mkString(",") + "\n")
-              writer.write("native_activities = " + native_acts.mkString(",") + "\n")
-              writer.write("native_methods = " + native_methods.mkString(",") + "\n")
-              writer.write("exec = " + execs + "\n")
-              writer.close()
-            } catch {
-              case e: Exception =>
-                throw e
-            } finally {
-              writer.close()
-            }
+            Await.result(f, 10 minutes)
           } catch {
-            case e: Throwable =>
-              CliLogger.logError(new File(outputPath), "Error: ", e)
-          } finally {
-            if (outApkUri != null) {
-              ConverterUtil.cleanDir(outApkUri)
-              FileUtil.toFile(outApkUri).delete()
-            }
+            case _: TimeoutException =>
+              cancel()
+              println("Timeout for " + fileUri)
           }
         }
+      }
+    }
+  }
+
+  private def collectNative(i: Int, fileUri: FileResourceUri, outputUri: FileResourceUri) = {
+    var outApkUri: FileResourceUri = null
+    try {
+      /******************* Load given Apk *********************/
+      println("Start Loading Apk!")
+      val reporter = new PrintReporter(MsgLevel.NO)
+      val layout = DecompileLayout(outputUri)
+      val settings = DecompilerSettings(
+        AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
+        dexLog = false, debugMode = false, removeSupportGen = true,
+        forceDelete = true, Some(new DecompileTimer(5 minutes)), layout)
+      val apk = Utils.loadApk(fileUri, settings, collectInfo = false, reporter)
+      outApkUri = apk.model.outApkUri
+      println("Apk Loaded!")
+
+      /******************* Get all .so files *********************/
+      println("Get all so.")
+      val so_files = FileUtil.listFiles(outApkUri, ".so", recursive = true)
+
+      /******************* Get all native methods and Runtime.exec *********************/
+      println("Get all native methods and Runtime.exec.")
+      val native_methods: MSet[Signature] = msetEmpty
+      var execs = 0
+      apk.getApplicationClassCodes foreach { case (typ, sf) =>
+        val mc = apk.getMyClass(typ).get
+        native_methods ++= mc.methods.filter(m => AccessFlag.isNative(m.accessFlag)).map(_.signature)
+        execs += StringUtils.countMatches(sf.code, "`java.lang.Runtime.exec`")
+      }
+
+      /******************* Get NativeActivities *********************/
+      println("Get NativeActivities.")
+      val native_acts = apk.model.getComponentInfos.map(_.compType).filter { a =>
+        apk.getClassHierarchy.isClassRecursivelySubClassOfIncluding(a, new JawaType("android.app.NativeActivity"))
+      }
+
+      /******************* Write report *********************/
+      println("Writing Report.")
+      val report_fileuri = MyFileUtil.appendFileName(outputUri, "report" + i + ".ini")
+      val writer = new FileWriter(FileUtil.toFile(report_fileuri), false)
+      try {
+        writer.write("[apk]\n")
+        writer.write("name = " + fileUri + "\n")
+        writer.write("so_files = " + so_files.mkString(",") + "\n")
+        writer.write("native_activities = " + native_acts.mkString(",") + "\n")
+        writer.write("native_methods = " + native_methods.mkString(",") + "\n")
+        writer.write("exec = " + execs + "\n")
+        writer.close()
+      } catch {
+        case e: Exception =>
+          throw e
+      } finally {
+        writer.close()
+      }
+    } catch {
+      case e: Throwable =>
+        CliLogger.logError(FileUtil.toFile(outputUri), "Error: ", e)
+    } finally {
+      if (outApkUri != null) {
+        ConverterUtil.cleanDir(outApkUri)
+        FileUtil.toFile(outApkUri).delete()
       }
     }
   }

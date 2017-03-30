@@ -6,7 +6,6 @@ import org.argus.amandroid.core.AndroidGlobalConfig
 import org.argus.amandroid.core.appInfo.AppInfoCollector
 import org.argus.amandroid.core.decompile.{ConverterUtil, DecompileLayout, DecompilerSettings}
 import org.argus.amandroid.core.dedex.DecompileTimer
-import org.argus.amandroid.core.util.ApkFileUtil
 import org.argus.jawa.core.DefaultReporter
 import org.argus.jawa.core.util.MyFileUtil
 import org.argus.play.cli.util.CliLogger
@@ -41,19 +40,20 @@ object CountComponentNum {
       if(map.contains(fileName)) {
         i += 1
         println(i + " of " + map.size + ":####" + fileUri + "####")
-        var outApkUri: FileResourceUri = ApkFileUtil.getOutputUri(fileUri, outputUri)
+        var outApkUri: FileResourceUri = null
         try {
-          /** ***************** Load given Apk *********************/
+          /******************* Load given Apk *********************/
           val layout = DecompileLayout(outputUri)
           val settings = DecompilerSettings(
             AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
             dexLog = false, debugMode = false, removeSupportGen = true,
             forceDelete = true, Some(new DecompileTimer(5 minutes)), layout)
           val apk = Utils.loadApk(fileUri, settings, collectInfo = false, new DefaultReporter)
+          outApkUri = apk.model.outApkUri
           val manifestUri = MyFileUtil.appendFileName(apk.model.outApkUri, "AndroidManifest.xml")
           val mfp = AppInfoCollector.analyzeManifest(new DefaultReporter, manifestUri)
 
-          /** ***************** Write report *********************/
+          /******************* Write report *********************/
           val report_fileuri = MyFileUtil.appendFileName(outputUri, "report.txt")
           val writer = new FileWriter(FileUtil.toFile(report_fileuri), true)
           try {

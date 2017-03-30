@@ -14,7 +14,7 @@ object Dependencies {
 
   val commons_cli: ModuleID = "commons-cli" % "commons-cli" % "1.3.1"
 
-  val amandroid_core: ModuleID = "com.github.arguslab" %% "amandroid-core" % "2.0.2"
+  val amandroid_core: ModuleID = "com.github.arguslab" %% "amandroid-core" % "2.0.4"
 }
 
 object DependencyGroups {
