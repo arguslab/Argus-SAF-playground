@@ -1,8 +1,8 @@
 package org.argus.play
 
 import org.apache.commons.cli._
+import org.argus.jawa.core.util._
 import org.argus.play.random.{CountComponentNum, NativeStatistics, SecurityAnalysis}
-import org.sireum.util._
 
 /**
   * Created by fgwei on 3/8/17.
@@ -22,17 +22,25 @@ object Main extends App {
     // create options
     val versionOption: Option = Option.builder().longOpt("version").desc("Prints the version then exits.").build()
 
-    val startNumOption: Option = Option.builder("n").longOpt("num").desc("Start from num file in the list.").hasArg(true).argName("startNum").build()
+    val timeoutOption: Option = Option.builder("t").longOpt("timeout").desc("Setup timeout in minutes. [Default: 10]").hasArg(true).argName("minutes").build()
+    val startNumOption: Option = Option.builder("sn").longOpt("start-num").desc("Start from x's file in the list.").hasArg(true).argName("startNum").build()
+    val endNumOption: Option = Option.builder("en").longOpt("end-num").desc("Ends at x's file in the list.").hasArg(true).argName("endNum").build()
     val genReportOption: Option = Option.builder("g").longOpt("gen").desc("Generate native lib usage report.").build()
     val calculateOption: Option = Option.builder("c").longOpt("calculate").desc("Calculate native lib usage statistics.").build()
     val checkersOption: Option = Option.builder("checker").desc("Select checkers separated by ',' (e.g., '1,2') for security analysis. Available checkers: 1. Hide Icon; 2. Crypto Misuse; 3. SSL/TLS Misuse; 4. Communication Leak; 5. Intent Injection.").hasArg(true).argName("nums").build()
+    nativeStatisticsOptions.addOption(timeoutOption)
     nativeStatisticsOptions.addOption(startNumOption)
+    nativeStatisticsOptions.addOption(endNumOption)
     nativeStatisticsOptions.addOption(genReportOption)
     nativeStatisticsOptions.addOption(calculateOption)
+    securityAnalysisOptions.addOption(timeoutOption)
     securityAnalysisOptions.addOption(startNumOption)
+    securityAnalysisOptions.addOption(endNumOption)
     securityAnalysisOptions.addOption(checkersOption)
+    allOptions.addOption(timeoutOption)
     allOptions.addOption(versionOption)
     allOptions.addOption(startNumOption)
+    allOptions.addOption(endNumOption)
     allOptions.addOption(genReportOption)
     allOptions.addOption(calculateOption)
     allOptions.addOption(checkersOption)
@@ -113,16 +121,24 @@ object Main extends App {
     var outputPath: String = "."
     var sourcePath: String = null
     var startNum: Int = 0
+    var endNum: Int = Integer.MAX_VALUE
     var genReport: Boolean = false
     var cacReport: Boolean = false
-    if(cli.hasOption("n") || cli.hasOption("num")) {
-      startNum = Integer.parseInt(cli.getOptionValue("n"))
+    var timeout: Int = 10
+    if(cli.hasOption("sn") || cli.hasOption("start-num")) {
+      startNum = Integer.parseInt(cli.getOptionValue("sn"))
+    }
+    if(cli.hasOption("en") || cli.hasOption("end-num")) {
+      endNum = Integer.parseInt(cli.getOptionValue("en"))
     }
     if(cli.hasOption("g") || cli.hasOption("gen")) {
       genReport = true
     }
     if(cli.hasOption("c") || cli.hasOption("calculate")) {
       cacReport = true
+    }
+    if(cli.hasOption("t") || cli.hasOption("timeout")) {
+      timeout = Integer.parseInt(cli.getOptionValue("t"))
     }
     try {
       sourcePath = cli.getArgList.get(1)
@@ -133,7 +149,7 @@ object Main extends App {
         System.exit(0)
     }
     if(genReport)
-      NativeStatistics(sourcePath, outputPath, startNum)
+      NativeStatistics(sourcePath, outputPath, startNum, endNum, timeout)
     if(cacReport)
       NativeStatistics(outputPath)
   }
@@ -158,12 +174,20 @@ object Main extends App {
     var outputPath: String = "."
     var sourcePath: String = null
     var startNum: Int = 0
+    var endNum: Int = Integer.MAX_VALUE
     var checkers: IList[Int] = ilistEmpty
-    if(cli.hasOption("n") || cli.hasOption("num")) {
-      startNum = Integer.parseInt(cli.getOptionValue("n"))
+    var timeout: Int = 10
+    if(cli.hasOption("sn") || cli.hasOption("start-num")) {
+      startNum = Integer.parseInt(cli.getOptionValue("sn"))
+    }
+    if(cli.hasOption("en") || cli.hasOption("end-num")) {
+      endNum = Integer.parseInt(cli.getOptionValue("en"))
     }
     if(cli.hasOption("checker")) {
       checkers = cli.getOptionValue("checker").split(",").map(Integer.parseInt).toList
+    }
+    if(cli.hasOption("t") || cli.hasOption("timeout")) {
+      timeout = Integer.parseInt(cli.getOptionValue("t"))
     }
     try {
       sourcePath = cli.getArgList.get(1)
@@ -173,6 +197,6 @@ object Main extends App {
         usage(Mode.SECURITY_ANALYSIS)
         System.exit(0)
     }
-    SecurityAnalysis(sourcePath, outputPath, checkers, startNum)
+    SecurityAnalysis(sourcePath, outputPath, checkers, startNum, endNum, timeout)
   }
 }

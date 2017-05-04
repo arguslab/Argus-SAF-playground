@@ -1,25 +1,22 @@
 package org.argus.play.random
 
-import java.io.{File, FileWriter}
+import java.io.FileWriter
 
 import org.argus.amandroid.alir.componentSummary.{ApkYard, ComponentBasedAnalysis}
 import org.argus.amandroid.alir.taintAnalysis.AndroidDataDependentTaintAnalysis
 import org.argus.amandroid.core.appInfo.AppInfoCollector
 import org.argus.amandroid.core.{AndroidGlobalConfig, ApkGlobal}
-import org.argus.amandroid.core.decompile.{ApkDecompiler, ConverterUtil, DecompileLayout, DecompilerSettings}
-import org.argus.amandroid.core.dedex.DecompileTimer
+import org.argus.amandroid.core.decompile._
 import org.argus.amandroid.core.model.ApkModel
-import org.argus.amandroid.core.util.AndroidLibraryAPISummary
 import org.argus.amandroid.plugin.ApiMisuseResult
 import org.argus.amandroid.plugin.apiMisuse.{CryptographicMisuse, HideIcon, SSLTLSMisuse}
 import org.argus.amandroid.plugin.communication.CommunicationSourceAndSinkManager
 import org.argus.amandroid.plugin.dataInjection.IntentInjectionSourceAndSinkManager
-import org.argus.jawa.alir.dataDependenceAnalysis.InterproceduralDataDependenceAnalysis
-import org.argus.jawa.alir.taintAnalysis.TaintAnalysisResult
-import org.argus.jawa.core.{Constants, MsgLevel, PrintReporter}
-import org.argus.jawa.core.util.MyFileUtil
+import org.argus.jawa.alir.dataDependenceAnalysis.InterProceduralDataDependenceAnalysis
+import org.argus.jawa.alir.taintAnalysis.TaintPath
+import org.argus.jawa.core.util._
+import org.argus.jawa.core.{DefaultLibraryAPISummary, MsgLevel, PrintReporter}
 import org.argus.play.cli.util.CliLogger
-import org.sireum.util._
 
 import scala.language.postfixOps
 import scala.concurrent.duration._
@@ -28,7 +25,7 @@ import scala.concurrent.duration._
   * Created by fgwei on 3/27/17.
   */
 object SecurityAnalysis {
-  def apply(sourcePath: String, outputPath: String, checkers: IList[Int], startNum: Int): Unit = {
+  def apply(sourcePath: String, outputPath: String, checkers: IList[Int], startNum: Int, endNum: Int, timeout: Int): Unit = {
     val pathUri = FileUtil.toUri(sourcePath)
     val outputUri = FileUtil.toUri(outputPath)
 
@@ -42,125 +39,153 @@ object SecurityAnalysis {
     var i = 0
     decs foreach { fileUri =>
       i += 1
-      if (i >= startNum) {
+      if (i >= startNum && i < endNum) {
         println(i + " of " + decs.size + ":####" + fileUri + "####")
         if (ApkGlobal.isDecompilable(fileUri)) {
-          var outApkUri: FileResourceUri = null
-          try {
-            /******************* Load given Apk *********************/
-            println("Start Loading Apk...")
-            val reporter = new PrintReporter(MsgLevel.NO)
-            val layout = DecompileLayout(outputUri)
-            val settings = DecompilerSettings(
-              AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
-              dexLog = false, debugMode = false, removeSupportGen = true,
-              forceDelete = true, Some(new DecompileTimer(5 minutes)), layout)
-            val yard = new ApkYard(reporter)
-            println("  Decompiling...")
-            val (outUri, srcs, _) = ApkDecompiler.decompile(fileUri, settings)
-            println("  Loading...")
-            val apk = new ApkGlobal(ApkModel(fileUri, outUri, srcs), reporter)
-            srcs foreach {
-              src =>
-                val fileUri = FileUtil.toUri(FileUtil.toFilePath(outUri) + File.separator + src)
-                if(FileUtil.toFile(fileUri).exists()) {
-                  //store the app's jawa code in AmandroidCodeSource which is organized class by class.
-                  apk.load(fileUri, Constants.JAWA_FILE_EXT, AndroidLibraryAPISummary)
-                }
-            }
-            println("  Collecting Info...")
-            AppInfoCollector.collectInfo(apk, outUri)
-            yard.addApk(apk)
-            outApkUri = apk.model.outApkUri
-            println("Apk Loaded!")
+          doAnalysis(i, fileUri, outputUri, checkers)
+        }
+      }
+    }
+  }
 
-            val misuseReports: MSet[ApiMisuseResult] = msetEmpty
-            val taintReports: MMap[String, Option[TaintAnalysisResult[AndroidDataDependentTaintAnalysis.Node, InterproceduralDataDependenceAnalysis.Edge]]] = mmapEmpty
+  def doAnalysis(i: Int, fileUri: FileResourceUri, outputUri: FileResourceUri, checkers: IList[Int]): Unit = {
+    var outApkUri: FileResourceUri = null
+    try {
+      /******************* Load given Apk *********************/
+      println("Start Loading Apk...")
+      val reporter = new PrintReporter(MsgLevel.NO)
+      val layout = DecompileLayout(outputUri)
+      val strategy = DecompileStrategy(new DefaultLibraryAPISummary(AndroidGlobalConfig.settings.third_party_lib_file), layout)
+      val settings = DecompilerSettings(debugMode = false, forceDelete = true, strategy, reporter)
+      val yard = new ApkYard(reporter)
+      println("  Decompiling...")
+      ApkDecompiler.decompile(fileUri, settings)
+      println("  Loading...")
+      val apk = new ApkGlobal(ApkModel(fileUri, settings.strategy.layout), reporter)
+      apk.load()
 
-            /******************* Light-weight checkers *********************/
-            if(checkers.contains(1)) {
-              println("Light-weight checker HideIcon.")
-              val checker1 = new HideIcon
-              misuseReports += checker1.check(apk, None)
-            }
-            if(checkers.contains(3)) {
-              println("Light-weight checker SSLTLSMisuse.")
-              val checker3 = new SSLTLSMisuse
-              misuseReports += checker3.check(apk, None)
-            }
+      outApkUri = apk.model.layout.outputSrcUri
 
-            if(checkers.contains(2) || checkers.contains(4) || checkers.contains(5)) {
-              /** ***************** Perform component based analysis *********************/
-              println("Component based analysis started!")
-              ComponentBasedAnalysis.prepare(Set(apk))(AndroidGlobalConfig.settings.timeout minutes)
-              val cba = new ComponentBasedAnalysis(yard)
-              cba.phase1(Set(apk))
-              val iddResult = cba.phase2(Set(apk))
-              println("Component based analysis done!")
+      val misuseReports: MSet[ApiMisuseResult] = msetEmpty
 
-              /** ***************** Heavy-weight checkers *********************/
-              if(checkers.contains(2)) {
-                println("Heavy-weight checker CryptographicMisuse.")
-                val checker2 = new CryptographicMisuse
-                apk.getIDFGs.foreach { case (_, idfg) =>
-                  misuseReports += checker2.check(apk, Some(idfg))
-                }
-              }
-              if(checkers.contains(4)) {
-                println("Heavy-weight checker CommunicationLeakage.")
-                val checker4 = new CommunicationSourceAndSinkManager(AndroidGlobalConfig.settings.sas_file)
-                val tar = cba.phase3(iddResult, checker4)
-                taintReports("CommunicationLeakage") = tar
-              }
-              if(checkers.contains(5)) {
-                println("Heavy-weight checker IntentInjection.")
-                val checker5 = new IntentInjectionSourceAndSinkManager(AndroidGlobalConfig.settings.sas_file)
-                val tar = cba.phase3(iddResult, checker5)
-                taintReports("IntentInjection") = tar
-              }
-            }
+      /******************* Light-weight checkers *********************/
+      if(checkers.contains(1)) {
+        println("Light-weight checker HideIcon.")
+        val man = AppInfoCollector.analyzeManifest(reporter, FileUtil.appendFileName(outApkUri, "AndroidManifest.xml"))
+        val mainComp = man.getIntentDB.getIntentFmap.find{ case (_, fs) =>
+          fs.exists{ f =>
+            f.getActions.contains("android.intent.action.MAIN") && f.getCategorys.contains("android.intent.category.LAUNCHER")
+          }
+        }.map(_._1)
+        if(mainComp.isDefined) {
+          val checker1 = new HideIcon(mainComp.get)
+          misuseReports += checker1.check(apk, None)
+        }
+      }
+      if(checkers.contains(2)) {
+        println("Light-weight checker CryptographicMisuse.")
+        val checker2 = new CryptographicMisuse
+        misuseReports += checker2.check(apk, None)
+      }
+      if(checkers.contains(3)) {
+        println("Light-weight checker SSLTLSMisuse.")
+        val checker3 = new SSLTLSMisuse
+        misuseReports += checker3.check(apk, None)
+      }
 
-            /** ***************** Write report *********************/
-            println("Writing Report.")
-            val report_fileuri = MyFileUtil.appendFileName(outputUri, "report" + i + ".ini")
-            val writer = new FileWriter(FileUtil.toFile(report_fileuri), false)
-            try {
-              writer.write(apk.model.getAppName + "\n\n")
-              misuseReports.foreach { r =>
-                if(r.misusedApis.nonEmpty) writer.write("!")
-                writer.write(r.checkerName + ":\n")
-                if(r.misusedApis.isEmpty) writer.write("  No misuse.\n")
-                r.misusedApis.foreach {
-                  case ((sig, line), des) => writer.write("  " + sig + " " + line + " : " + des + "\n")
-                }
-              }
-              taintReports.foreach { case (checkerName, tar) =>
-                if(tar.isDefined) {
-                  if(tar.get.getTaintedPaths.nonEmpty) writer.write("!")
-                  writer.write(checkerName + ":\n")
-                  if(tar.get.getTaintedPaths.isEmpty) writer.write("  No taint path found.\n")
-                  tar.get.getTaintedPaths.foreach { path =>
-                    writer.write(path.toString)
-                  }
-                }
-              }
-            } catch {
-              case e: Exception =>
-                throw e
-            } finally {
-              writer.close()
+      val taintReports: MMap[String, MSet[TaintPath[AndroidDataDependentTaintAnalysis.Node, InterProceduralDataDependenceAnalysis.Edge]]] = mmapEmpty
+
+      if(checkers.contains(4) || checkers.contains(5)) {
+        println("  Collecting Info...")
+        AppInfoCollector.collectInfo(apk)
+        yard.addApk(apk)
+        println("Apk Loaded!")
+
+        /** ***************** Perform component based analysis *********************/
+        val report_fileuri = FileUtil.appendFileName(outputUri, "report.txt")
+        val writer = new FileWriter(FileUtil.toFile(report_fileuri), true)
+        val lines = (apk.getApplicationClassCodes ++ apk.getUserLibraryClassCodes).values.map(_.code.split("[\n|\r]").length).sum
+        println("Component based analysis started!")
+        timed(fileUri, lines, writer) {
+          ComponentBasedAnalysis.prepare(Set(apk))(2 minutes)
+        }
+        writer.close()
+        val cba = new ComponentBasedAnalysis(yard)
+        cba.phase1(Set(apk))
+        println("Component based analysis done!")
+
+        /** ***************** Heavy-weight checkers *********************/
+        if(checkers.contains(4)) {
+          println("Heavy-weight checker CommunicationLeakage.")
+          val checker4 = new CommunicationSourceAndSinkManager(AndroidGlobalConfig.settings.sas_file)
+          apk.getIDDGs foreach { case(typ, iddg) =>
+            apk.getIDFG(typ) match {
+              case Some(idfg) =>
+                taintReports.getOrElseUpdate("CommunicationLeakage", msetEmpty) ++= AndroidDataDependentTaintAnalysis(yard, iddg, idfg.ptaresult, checker4).getTaintedPaths
+              case None => isetEmpty
             }
-          } catch {
-            case e: Throwable =>
-              CliLogger.logError(new File(outputPath), "Error: ", e)
-          } finally {
-            if (outApkUri != null) {
-              ConverterUtil.cleanDir(outApkUri)
-              FileUtil.toFile(outApkUri).delete()
+          }
+        }
+        if(checkers.contains(5)) {
+          println("Heavy-weight checker IntentInjection.")
+          val checker5 = new IntentInjectionSourceAndSinkManager(AndroidGlobalConfig.settings.sas_file)
+          apk.getIDDGs foreach { case(typ, iddg) =>
+            apk.getIDFG(typ) match {
+              case Some(idfg) =>
+                taintReports.getOrElseUpdate("IntentInjection", msetEmpty) ++= AndroidDataDependentTaintAnalysis(yard, iddg, idfg.ptaresult, checker5).getTaintedPaths
+              case None => isetEmpty
             }
           }
         }
       }
+
+      /** ***************** Write report *********************/
+      println("Writing Report.")
+      val report_fileuri = FileUtil.appendFileName(outputUri, "report" + i + ".ini")
+      val writer = new FileWriter(FileUtil.toFile(report_fileuri), false)
+      try {
+        writer.write(apk.model.getAppName + "\n\n")
+        misuseReports.foreach { r =>
+          if(r.misusedApis.nonEmpty) writer.write("!")
+          writer.write(r.checkerName + ":\n")
+          if(r.misusedApis.isEmpty) writer.write("  No misuse.\n")
+          r.misusedApis.foreach {
+            case ((sig, line), des) => writer.write("  " + sig + " " + line + " : " + des + "\n")
+          }
+        }
+        taintReports.foreach { case (checkerName, paths) =>
+          if(paths.nonEmpty) writer.write("!")
+          writer.write(checkerName + ":\n")
+          if(paths.isEmpty) writer.write("  No taint path found.\n")
+          paths.foreach { path =>
+            if(path.getPath.size <= 10)
+              writer.write(path.toString)
+          }
+        }
+      } catch {
+        case e: Exception =>
+          throw e
+      } finally {
+        writer.close()
+      }
+    } catch {
+      case e: Throwable =>
+        CliLogger.logError(FileUtil.toFile(outputUri), "Error: ", e)
+    } finally {
+      if (outApkUri != null) {
+        ConverterUtil.cleanDir(outApkUri)
+        FileUtil.toFile(outApkUri).delete()
+      }
     }
+  }
+
+  private[this] def timed[T](label: String, line: Int, log: FileWriter)(t: => T): Unit = {
+    val start = System.nanoTime
+    try t
+    catch {
+      case _: Exception =>
+    }
+    val elapsed = System.nanoTime - start
+    log.write(label + " " + line + " " + (elapsed/1e9) + "\n")
   }
 }

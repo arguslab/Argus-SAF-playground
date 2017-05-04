@@ -2,19 +2,16 @@ package org.argus.play.random
 
 import java.io.{File, FileWriter}
 
+import org.argus.amandroid.alir.componentSummary.ApkYard
 import org.argus.amandroid.core.AndroidGlobalConfig
 import org.argus.amandroid.core.appInfo.AppInfoCollector
-import org.argus.amandroid.core.decompile.{ConverterUtil, DecompileLayout, DecompilerSettings}
-import org.argus.amandroid.core.dedex.DecompileTimer
-import org.argus.jawa.core.DefaultReporter
-import org.argus.jawa.core.util.MyFileUtil
+import org.argus.amandroid.core.decompile.{ConverterUtil, DecompileLayout, DecompileStrategy, DecompilerSettings}
+import org.argus.jawa.core.{DefaultLibraryAPISummary, DefaultReporter}
+import org.argus.jawa.core.util._
 import org.argus.play.cli.util.CliLogger
-import org.argus.play.util.Utils
-import org.sireum.util._
 
 import scala.io.Source
 import scala.language.postfixOps
-import scala.concurrent.duration._
 
 /**
   * Created by fgwei on 3/22/17.
@@ -43,18 +40,18 @@ object CountComponentNum {
         var outApkUri: FileResourceUri = null
         try {
           /******************* Load given Apk *********************/
+          val reporter = new DefaultReporter
           val layout = DecompileLayout(outputUri)
-          val settings = DecompilerSettings(
-            AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
-            dexLog = false, debugMode = false, removeSupportGen = true,
-            forceDelete = true, Some(new DecompileTimer(5 minutes)), layout)
-          val apk = Utils.loadApk(fileUri, settings, collectInfo = false, new DefaultReporter)
-          outApkUri = apk.model.outApkUri
-          val manifestUri = MyFileUtil.appendFileName(apk.model.outApkUri, "AndroidManifest.xml")
-          val mfp = AppInfoCollector.analyzeManifest(new DefaultReporter, manifestUri)
+          val strategy = DecompileStrategy(new DefaultLibraryAPISummary(AndroidGlobalConfig.settings.third_party_lib_file), layout)
+          val settings = DecompilerSettings(debugMode = false, forceDelete = true, strategy, reporter)
+          val yard = new ApkYard(reporter)
+          val apk = yard.loadApk(fileUri, settings, collectInfo = false)
+          outApkUri = apk.model.layout.outputSrcUri
+          val manifestUri = FileUtil.appendFileName(outApkUri, "AndroidManifest.xml")
+          val mfp = AppInfoCollector.analyzeManifest(reporter, manifestUri)
 
           /******************* Write report *********************/
-          val report_fileuri = MyFileUtil.appendFileName(outputUri, "report.txt")
+          val report_fileuri = FileUtil.appendFileName(outputUri, "report.txt")
           val writer = new FileWriter(FileUtil.toFile(report_fileuri), true)
           try {
             writer.write(fileName + " " + map(fileName) + " " + mfp.getComponentInfos.size + " " + apk.getApplicationClassCodes.values.map(_.code.split("[\n|\r]").length).sum + "\n")

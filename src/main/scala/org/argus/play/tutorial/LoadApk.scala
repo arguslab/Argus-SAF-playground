@@ -1,10 +1,10 @@
 package org.argus.play.tutorial
 
 import org.argus.amandroid.alir.componentSummary.ApkYard
-import org.argus.amandroid.core.decompile.{DecompileLayout, DecompilerSettings}
 import org.argus.amandroid.core.AndroidGlobalConfig
-import org.argus.jawa.core.DefaultReporter
-import org.sireum.util.FileUtil
+import org.argus.amandroid.core.decompile.{DecompileLayout, DecompileStrategy, DecompilerSettings}
+import org.argus.jawa.core.{DefaultLibraryAPISummary, DefaultReporter}
+import org.argus.jawa.core.util.FileUtil
 
 /**
   * Created by fgwei on 2/22/17.
@@ -21,12 +21,10 @@ class LoadApk {
     // Yard is the apks manager
     val yard = new ApkYard(reporter)
     val layout = DecompileLayout(outputUri)
-    val settings = DecompilerSettings(
-      AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
-      dexLog = false, debugMode = false, removeSupportGen = true,
-      forceDelete = false, None, layout)
+    val strategy = DecompileStrategy(new DefaultLibraryAPISummary(AndroidGlobalConfig.settings.third_party_lib_file), layout)
+    val settings = DecompilerSettings(debugMode = false, forceDelete = true, strategy, reporter)
     // apk is the apk meta data manager, class loader and class manager
-    val apk = yard.loadApk(fileUri, settings)
+    val apk = yard.loadApk(fileUri, settings, collectInfo = false)
 
     val appName = apk.model.getAppName
     val certificate = apk.model.getCertificates

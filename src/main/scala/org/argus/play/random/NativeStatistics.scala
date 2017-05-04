@@ -1,31 +1,23 @@
 package org.argus.play.random
 
 import java.io.FileWriter
-import java.util.concurrent.TimeoutException
 
-import org.apache.commons.lang3.StringUtils
+import org.argus.amandroid.alir.componentSummary.ApkYard
+import org.argus.amandroid.core.appInfo.AppInfoCollector
 import org.argus.amandroid.core.{AndroidGlobalConfig, ApkGlobal}
-import org.argus.amandroid.core.decompile.{ConverterUtil, DecompileLayout, DecompilerSettings}
-import org.argus.amandroid.core.dedex.DecompileTimer
-import org.argus.jawa.core.util.{FutureUtil, MyFileUtil}
+import org.argus.amandroid.core.decompile._
+import org.argus.amandroid.core.parser.ComponentType
 import org.argus.jawa.core._
+import org.argus.jawa.core.util._
 import org.argus.play.cli.util.CliLogger
-import org.argus.play.util.Utils
 import org.ini4j.Wini
-import org.sireum.util._
-
-import scala.concurrent.Await
-import scala.concurrent.ExecutionContext.Implicits.{global => sc}
-import scala.language.postfixOps
-import scala.concurrent.duration._
-
 
 /**
   * Generate the statistics of native lib usage from given dataset.
   */
 object NativeStatistics {
 
-  def apply(sourcePath: String, outputPath: String, startNum: Int): Unit = {
+  def apply(sourcePath: String, outputPath: String, startNum: Int, endNum: Int, timeout: Int): Unit = {
     val pathUri = FileUtil.toUri(sourcePath)
     val outputUri = FileUtil.toUri(outputPath)
 
@@ -34,19 +26,10 @@ object NativeStatistics {
     var i = 0
     decs foreach { fileUri =>
       i += 1
-      if(i >= startNum) {
+      if(i >= startNum && i < endNum) {
         println(i + " of " + decs.size + ":####" + fileUri + "####")
         if (ApkGlobal.isDecompilable(fileUri)) {
-          val (f, cancel) = FutureUtil.interruptableFuture[Unit] { () =>
-            collectNative(i, fileUri, outputUri)
-          }
-          try {
-            Await.result(f, 10 minutes)
-          } catch {
-            case _: TimeoutException =>
-              cancel()
-              println("Timeout for " + fileUri)
-          }
+          collectNative(i, fileUri, outputUri)
         }
       }
     }
@@ -59,37 +42,43 @@ object NativeStatistics {
       println("Start Loading Apk!")
       val reporter = new PrintReporter(MsgLevel.NO)
       val layout = DecompileLayout(outputUri)
-      val settings = DecompilerSettings(
-        AndroidGlobalConfig.settings.dependence_dir.map(FileUtil.toUri),
-        dexLog = false, debugMode = false, removeSupportGen = true,
-        forceDelete = true, Some(new DecompileTimer(5 minutes)), layout)
-      val apk = Utils.loadApk(fileUri, settings, collectInfo = false, reporter)
-      outApkUri = apk.model.outApkUri
+      val strategy = DecompileStrategy(new DefaultLibraryAPISummary(AndroidGlobalConfig.settings.third_party_lib_file), layout, DecompileLevel.SIGNATURE, DecompileLevel.NO)
+      val settings = DecompilerSettings(debugMode = false, forceDelete = true, strategy, reporter)
+      val yard = new ApkYard(reporter)
+      val apk = yard.loadApk(fileUri, settings, collectInfo = false)
+      outApkUri = apk.model.layout.outputSrcUri
       println("Apk Loaded!")
 
       /******************* Get all .so files *********************/
       println("Get all so.")
       val so_files = FileUtil.listFiles(outApkUri, ".so", recursive = true)
 
-      /******************* Get all native methods and Runtime.exec *********************/
-      println("Get all native methods and Runtime.exec.")
+      /******************* Get all native methods *********************/
+      println("Get all native methods.")
       val native_methods: MSet[Signature] = msetEmpty
-      var execs = 0
-      apk.getApplicationClassCodes foreach { case (typ, sf) =>
-        val mc = apk.getMyClass(typ).get
-        native_methods ++= mc.methods.filter(m => AccessFlag.isNative(m.accessFlag)).map(_.signature)
-        execs += StringUtils.countMatches(sf.code, "`java.lang.Runtime.exec`")
+//      var execs = 0
+      apk.getApplicationClassCodes foreach { case (typ, _) =>
+        apk.getMyClass(typ) match {
+          case Some(mc) =>
+            native_methods ++= mc.methods.filter (m => AccessFlag.isNative (m.accessFlag) ).map (_.signature)
+          case None =>
+        }
       }
 
       /******************* Get NativeActivities *********************/
       println("Get NativeActivities.")
-      val native_acts = apk.model.getComponentInfos.map(_.compType).filter { a =>
-        apk.getClassHierarchy.isClassRecursivelySubClassOfIncluding(a, new JawaType("android.app.NativeActivity"))
+      val nativeActivity = apk.getClassOrResolve(new JawaType("android.app.NativeActivity"))
+      val manifestUri = FileUtil.appendFileName(apk.model.layout.outputSrcUri, "AndroidManifest.xml")
+      val mfp = AppInfoCollector.analyzeManifest(apk.reporter, manifestUri)
+
+      val native_acts = mfp.getComponentInfos.filter(_.typ == ComponentType.ACTIVITY).map(_.compType).filter { a =>
+        val act = apk.getClassOrResolve(a)
+        nativeActivity.isAssignableFrom(act)
       }
 
       /******************* Write report *********************/
       println("Writing Report.")
-      val report_fileuri = MyFileUtil.appendFileName(outputUri, "report" + i + ".ini")
+      val report_fileuri = FileUtil.appendFileName(outputUri, "report" + i + ".ini")
       val writer = new FileWriter(FileUtil.toFile(report_fileuri), false)
       try {
         writer.write("[apk]\n")
@@ -97,7 +86,7 @@ object NativeStatistics {
         writer.write("so_files = " + so_files.mkString(",") + "\n")
         writer.write("native_activities = " + native_acts.mkString(",") + "\n")
         writer.write("native_methods = " + native_methods.mkString(",") + "\n")
-        writer.write("exec = " + execs + "\n")
+//        writer.write("exec = " + execs + "\n")
         writer.close()
       } catch {
         case e: Exception =>
@@ -123,7 +112,7 @@ object NativeStatistics {
     var haveSo: Int = 0
     var haveNativeMethod: Int = 0
     var haveNativeActivity: Int = 0
-    var haveExec: Int = 0
+//    var haveExec: Int = 0
     var nativeMethod_total: Int = 0
     var nativeMethod_passdata: Int = 0
     var nativeMethod_object: Int = 0
@@ -132,7 +121,6 @@ object NativeStatistics {
     val passObjects: MSet[JawaType] = msetEmpty
     val nativeMethods: MSet[Int] = msetEmpty
     try {
-
       FileUtil.listFiles(reportsUri, ".ini", recursive = true).foreach { iniUri =>
         total += 1
         val ini = new Wini(FileUtil.toFile(iniUri))
@@ -140,7 +128,7 @@ object NativeStatistics {
         val so_files: ISet[FileResourceUri] = ini.get("apk", "so_files", classOf[FileResourceUri]).split(",").toSet.filter(_.nonEmpty)
         val native_acts: ISet[JawaType] = ini.get("apk", "native_activities", classOf[String]).split(",").toSet.filter(_.nonEmpty).map(new JawaType(_))
         val native_methods: ISet[Signature] = ini.get("apk", "native_methods", classOf[String]).split(",").toSet.filter(_.nonEmpty).map(new Signature(_))
-        val execs: Int = ini.get("apk", "exec", classOf[Int])
+//        val execs: Int = ini.get("apk", "exec", classOf[Int])
 
         if (so_files.nonEmpty || native_acts.nonEmpty || native_methods.nonEmpty) haveNative += 1
         if (so_files.nonEmpty) haveSo += 1
@@ -150,7 +138,7 @@ object NativeStatistics {
         nativeMethod_passdata += native_methods.count(_.getParameterNum != 0)
         nativeMethod_object += native_methods.count(_.getObjectParameters.nonEmpty)
         if (native_acts.nonEmpty) haveNativeActivity += 1
-        if (execs != 0) haveExec += 1
+//        if (execs != 0) haveExec += 1
         so_files.foreach{ file =>
           val f = FileUtil.toFile(file)
           sofiles += f.getName
@@ -169,18 +157,18 @@ object NativeStatistics {
     val haveNativeMethod_per = haveNativeMethod.toFloat / haveNative
     val haveSo_per = haveSo.toFloat / haveNative
     val haveNativeActivity_per = haveNativeActivity.toFloat / haveNative
-    val haveExec_per = haveExec.toFloat / haveNative
+//    val haveExec_per = haveExec.toFloat / haveNative
     val nm_passdata_per = nativeMethod_passdata.toFloat / nativeMethod_total
     val nm_object_per = nativeMethod_object.toFloat / nativeMethod_total
     val avg_nm = average(nativeMethods)
 
-    println("total: " + total + "\nhaveNative: " + haveNative + "\nhaveSo: " + haveSo + "\nhaveNativeMethod: " + haveNativeMethod + "\nhaveNativeActivity: " + haveNativeActivity + "\nhaveExec: " + haveExec + "\nnativeMethod_total: " + nativeMethod_total + "\nnativeMethod_passdata: " + nativeMethod_passdata + "\nnativeMethod_object: " + nativeMethod_object)
+    println("total: " + total + "\nhaveNative: " + haveNative + "\nhaveSo: " + haveSo + "\nhaveNativeMethod: " + haveNativeMethod + "\nhaveNativeActivity: " + haveNativeActivity + "\nnativeMethod_total: " + nativeMethod_total + "\nnativeMethod_passdata: " + nativeMethod_passdata + "\nnativeMethod_object: " + nativeMethod_object)
     println()
-    println("haveNative_per: " + haveNative_per + "\nhaveNativeMethod_per: " + haveNativeMethod_per + "\nhaveSo_per: " + haveSo_per + "\nhaveNativeActivity_per: " + haveNativeActivity_per + "\nhaveExec_per: " + haveExec_per + "\nnm_passdata_per: " + nm_passdata_per + "\nnm_object_per: " + nm_object_per + "\navg_nm: " + avg_nm)
-    println()
-    println("so_files: \n" + sofiles.mkString("\n"))
+    println("haveNative_per: " + haveNative_per + "\nhaveNativeMethod_per: " + haveNativeMethod_per + "\nhaveSo_per: " + haveSo_per + "\nhaveNativeActivity_per: " + haveNativeActivity_per + "\nnm_passdata_per: " + nm_passdata_per + "\nnm_object_per: " + nm_object_per + "\navg_nm: " + avg_nm)
     println()
     println("architectures: \n" + archis.map{case (k, v) => k + ":" + v}.mkString("\n"))
+    println()
+    println("so_files: \n" + sofiles.mkString("\n"))
     println()
     println("nm_objects: \n" + passObjects.mkString("\n"))
   }
