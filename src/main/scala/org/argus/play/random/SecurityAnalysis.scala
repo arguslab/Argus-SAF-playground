@@ -12,10 +12,9 @@ import org.argus.amandroid.plugin.ApiMisuseResult
 import org.argus.amandroid.plugin.apiMisuse.{CryptographicMisuse, HideIcon, SSLTLSMisuse}
 import org.argus.amandroid.plugin.communication.CommunicationSourceAndSinkManager
 import org.argus.amandroid.plugin.dataInjection.IntentInjectionSourceAndSinkManager
-import org.argus.jawa.alir.dataDependenceAnalysis.InterProceduralDataDependenceAnalysis
 import org.argus.jawa.alir.taintAnalysis.TaintPath
 import org.argus.jawa.core.util._
-import org.argus.jawa.core.{DefaultLibraryAPISummary, MsgLevel, PrintReporter}
+import org.argus.jawa.core.{MsgLevel, PrintReporter}
 import org.argus.play.cli.util.CliLogger
 
 import scala.language.postfixOps
@@ -55,7 +54,7 @@ object SecurityAnalysis {
       println("Start Loading Apk...")
       val reporter = new PrintReporter(MsgLevel.NO)
       val layout = DecompileLayout(outputUri)
-      val strategy = DecompileStrategy(new DefaultLibraryAPISummary(AndroidGlobalConfig.settings.third_party_lib_file), layout)
+      val strategy = DecompileStrategy(layout)
       val settings = DecompilerSettings(debugMode = false, forceDelete = true, strategy, reporter)
       val yard = new ApkYard(reporter)
       println("  Decompiling...")
@@ -93,11 +92,11 @@ object SecurityAnalysis {
         misuseReports += checker3.check(apk, None)
       }
 
-      val taintReports: MMap[String, MSet[TaintPath[AndroidDataDependentTaintAnalysis.Node, InterProceduralDataDependenceAnalysis.Edge]]] = mmapEmpty
+      val taintReports: MMap[String, MSet[TaintPath]] = mmapEmpty
 
       if(checkers.contains(4) || checkers.contains(5)) {
         println("  Collecting Info...")
-        AppInfoCollector.collectInfo(apk)
+        AppInfoCollector.collectInfo(apk, resolveCallBack = true)
         yard.addApk(apk)
         println("Apk Loaded!")
 
@@ -128,7 +127,7 @@ object SecurityAnalysis {
         }
         if(checkers.contains(5)) {
           println("Heavy-weight checker IntentInjection.")
-          val checker5 = new IntentInjectionSourceAndSinkManager(AndroidGlobalConfig.settings.sas_file)
+          val checker5 = new IntentInjectionSourceAndSinkManager(AndroidGlobalConfig.settings.injection_sas_file)
           apk.getIDDGs foreach { case(typ, iddg) =>
             apk.getIDFG(typ) match {
               case Some(idfg) =>

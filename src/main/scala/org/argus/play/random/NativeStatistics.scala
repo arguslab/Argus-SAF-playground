@@ -4,7 +4,7 @@ import java.io.FileWriter
 
 import org.argus.amandroid.alir.componentSummary.ApkYard
 import org.argus.amandroid.core.appInfo.AppInfoCollector
-import org.argus.amandroid.core.{AndroidGlobalConfig, ApkGlobal}
+import org.argus.amandroid.core.ApkGlobal
 import org.argus.amandroid.core.decompile._
 import org.argus.amandroid.core.parser.ComponentType
 import org.argus.jawa.core._
@@ -35,17 +35,17 @@ object NativeStatistics {
     }
   }
 
-  private def collectNative(i: Int, fileUri: FileResourceUri, outputUri: FileResourceUri) = {
+  private def collectNative(i: Int, fileUri: FileResourceUri, outputUri: FileResourceUri): Unit = {
     var outApkUri: FileResourceUri = null
     try {
       /******************* Load given Apk *********************/
       println("Start Loading Apk!")
       val reporter = new PrintReporter(MsgLevel.NO)
       val layout = DecompileLayout(outputUri)
-      val strategy = DecompileStrategy(new DefaultLibraryAPISummary(AndroidGlobalConfig.settings.third_party_lib_file), layout, DecompileLevel.SIGNATURE, DecompileLevel.NO)
+      val strategy = DecompileStrategy(layout, sourceLevel = DecompileLevel.SIGNATURE, thirdPartyLibLevel = DecompileLevel.NO)
       val settings = DecompilerSettings(debugMode = false, forceDelete = true, strategy, reporter)
       val yard = new ApkYard(reporter)
-      val apk = yard.loadApk(fileUri, settings, collectInfo = false)
+      val apk = yard.loadApk(fileUri, settings, collectInfo = false, resolveCallBack = false)
       outApkUri = apk.model.layout.outputSrcUri
       println("Apk Loaded!")
 

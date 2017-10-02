@@ -1,9 +1,8 @@
 package org.argus.play.tutorial
 
 import org.argus.amandroid.alir.componentSummary.ApkYard
-import org.argus.amandroid.core.AndroidGlobalConfig
 import org.argus.amandroid.core.decompile.{DecompileLayout, DecompileStrategy, DecompilerSettings}
-import org.argus.jawa.core.{DefaultLibraryAPISummary, DefaultReporter}
+import org.argus.jawa.core.DefaultReporter
 import org.argus.jawa.core.util.FileUtil
 
 /**
@@ -21,10 +20,10 @@ class LoadApk {
     // Yard is the apks manager
     val yard = new ApkYard(reporter)
     val layout = DecompileLayout(outputUri)
-    val strategy = DecompileStrategy(new DefaultLibraryAPISummary(AndroidGlobalConfig.settings.third_party_lib_file), layout)
+    val strategy = DecompileStrategy(layout)
     val settings = DecompilerSettings(debugMode = false, forceDelete = true, strategy, reporter)
     // apk is the apk meta data manager, class loader and class manager
-    val apk = yard.loadApk(fileUri, settings, collectInfo = false)
+    val apk = yard.loadApk(fileUri, settings, collectInfo = false, resolveCallBack = false)
 
     val appName = apk.model.getAppName
     val certificate = apk.model.getCertificates

@@ -10,18 +10,15 @@ object Dependencies {
 
   val sbtLaunch: ModuleID = "org.scala-sbt" % "sbt-launch" % sbtVersion
 
-  val scala_reflect: ModuleID = "org.scala-lang" % "scala-reflect" % scalaVersion
-
   val commons_cli: ModuleID = "commons-cli" % "commons-cli" % "1.3.1"
 
-  val amandroid_core: ModuleID = "com.github.arguslab" %% "amandroid" % "3.1.0"
+  val amandroid_core: ModuleID = "com.github.arguslab" %% "amandroid" % "3.1.2-SNAPSHOT"
 }
 
 object DependencyGroups {
   import Dependencies._
 
   val saf_play = Seq(
-    scala_reflect,
     commons_cli,
     amandroid_core
   )

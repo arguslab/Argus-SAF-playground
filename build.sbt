@@ -14,7 +14,7 @@ val buildInfoSettings = Seq(
 )
 val assemblySettings = Seq(
   assemblyJarName in assembly := s"${name.value}-${version.value}-assembly.jar",
-  mainClass in assembly := Some("org.argus.play.Main")
+  mainClass in assembly := Some("org.argus.play.cli.Main")
 )
 
 

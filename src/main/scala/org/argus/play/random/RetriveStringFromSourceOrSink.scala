@@ -1,15 +1,17 @@
 package org.argus.play.random
 
 import org.argus.amandroid.alir.componentSummary.ApkYard
-import org.argus.amandroid.alir.pta.reachingFactsAnalysis.{AndroidRFAConfig, AndroidReachingFactsAnalysis}
+import org.argus.amandroid.alir.pta.model.AndroidModelCallHandler
+import org.argus.amandroid.alir.pta.reachingFactsAnalysis.{AndroidReachingFactsAnalysis, AndroidReachingFactsAnalysisConfig}
+import org.argus.amandroid.alir.pta.summaryBasedAnalysis.AndroidSummaryProvider
 import org.argus.amandroid.alir.taintAnalysis.{AndroidDataDependentTaintAnalysis, DataLeakageAndroidSourceAndSinkManager}
 import org.argus.amandroid.core.AndroidGlobalConfig
 import org.argus.amandroid.core.decompile.{DecompileLayout, DecompileStrategy, DecompilerSettings}
 import org.argus.jawa.alir.Context
-import org.argus.jawa.alir.controlFlowGraph.{ICFGCallNode, ICFGInvokeNode}
+import org.argus.jawa.alir.controlFlowGraph.{ICFGCallNode, ICFGInvokeNode, ICFGNode, InterProceduralControlFlowGraph}
 import org.argus.jawa.alir.dataDependenceAnalysis.InterProceduralDataDependenceAnalysis
-import org.argus.jawa.alir.pta.{PTAConcreteStringInstance, VarSlot}
-import org.argus.jawa.alir.pta.reachingFactsAnalysis.RFAFactFactory
+import org.argus.jawa.alir.pta.{PTAConcreteStringInstance, PTAResult, VarSlot}
+import org.argus.jawa.alir.pta.reachingFactsAnalysis.SimHeap
 import org.argus.jawa.core._
 import org.argus.jawa.core.util._
 
@@ -43,9 +45,9 @@ object RetriveStringFromSourceOrSink {
     val reporter = new DefaultReporter
     val yard = new ApkYard(reporter)
     val layout = DecompileLayout(outputUri)
-    val strategy = DecompileStrategy(new DefaultLibraryAPISummary(AndroidGlobalConfig.settings.third_party_lib_file), layout)
+    val strategy = DecompileStrategy(layout)
     val settings = DecompilerSettings(debugMode = false, forceDelete = true, strategy, reporter)
-    val apk = yard.loadApk(fileUri, settings, collectInfo = true)
+    val apk = yard.loadApk(fileUri, settings, collectInfo = true, resolveCallBack = true)
 
     /******************* Do Taint analysis *********************/
 
@@ -53,9 +55,16 @@ object RetriveStringFromSourceOrSink {
     apk.model.getEnvMap.get(component) match {
       case Some((esig, _)) =>
         val ep = apk.getMethod(esig).get
-        implicit val factory = new RFAFactFactory
-        val initialfacts = AndroidRFAConfig.getInitialFactsForMainEnvironment(ep)
-        val idfg = AndroidReachingFactsAnalysis(apk, ep, initialfacts, new ClassLoadManager, new Context(apk.nameUri), timeout = None)
+        implicit val heap: SimHeap = new SimHeap
+        val initialfacts = AndroidReachingFactsAnalysisConfig.getInitialFactsForMainEnvironment(ep)
+        val icfg = new InterProceduralControlFlowGraph[ICFGNode]
+        val ptaresult = new PTAResult
+        val sp = new AndroidSummaryProvider(apk)
+        val analysis = new AndroidReachingFactsAnalysis(
+          apk, icfg, ptaresult, AndroidModelCallHandler, sp.getSummaryManager, new ClassLoadManager,
+          AndroidReachingFactsAnalysisConfig.resolve_static_init,
+          timeout = None)
+        val idfg = analysis.build(ep, initialfacts, new Context(apk.nameUri))
         val iddResult = InterProceduralDataDependenceAnalysis(apk, idfg)
         val ssm = new DataLeakageAndroidSourceAndSinkManager(AndroidGlobalConfig.settings.sas_file)
         val taint_analysis_result = AndroidDataDependentTaintAnalysis(yard, iddResult, idfg.ptaresult, ssm)
@@ -65,10 +74,10 @@ object RetriveStringFromSourceOrSink {
         val urlMap: MMap[Context, MSet[String]] = mmapEmpty
         idfg.icfg.nodes foreach {
           case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/net/URL;.<init>:(Ljava/lang/String;)V") =>
-            val urlSlot = VarSlot(cn.argNames.head, isBase = false, isArg = true)
-            val urls = idfg.ptaresult.pointsToSet(urlSlot, cn.getContext)
-            val strSlot = VarSlot(cn.argNames(1), isBase = false, isArg = true)
-            val urlvalues = idfg.ptaresult.pointsToSet(strSlot, cn.getContext) map {
+            val urlSlot = VarSlot(cn.argNames.head)
+            val urls = idfg.ptaresult.pointsToSet(cn.getContext, urlSlot)
+            val strSlot = VarSlot(cn.argNames(1))
+            val urlvalues = idfg.ptaresult.pointsToSet(cn.getContext, strSlot) map {
               case pcsi: PTAConcreteStringInstance => pcsi.string
               case _ => "ANY"
             }
@@ -81,27 +90,25 @@ object RetriveStringFromSourceOrSink {
 
         /******************* Retrieve URL value *********************/
 
-        val gisNodes = taint_analysis_result.getSourceNodes.filter{
-          node =>
-            node.node.getICFGNode match {
-              case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/net/URLConnection;.getInputStream:()Ljava/io/InputStream;") =>
-                true
-              case _ => false
-            }
+        val gisNodes = taint_analysis_result.getSourceNodes.filter{ node =>
+          node.node.node match {
+            case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/net/URLConnection;.getInputStream:()Ljava/io/InputStream;") =>
+              true
+            case _ => false
+          }
         }
         gisNodes.foreach {
           node =>
-            val invNode = node.node.getICFGNode.asInstanceOf[ICFGInvokeNode]
-            val connSlot = VarSlot(invNode.argNames.head, isBase = false, isArg = true)
-            val connValues = idfg.ptaresult.pointsToSet(connSlot, invNode.getContext)
+            val invNode = node.node.node.asInstanceOf[ICFGInvokeNode]
+            val connSlot = VarSlot(invNode.argNames.head)
+            val connValues = idfg.ptaresult.pointsToSet(invNode.getContext, connSlot)
             connValues foreach {
               connValue =>
                 val urlInvNode = idfg.icfg.getICFGCallNode(connValue.defSite).asInstanceOf[ICFGCallNode]
-                val urlSlot = VarSlot(urlInvNode.argNames.head, isBase = false, isArg = true)
-                val urlValues = idfg.ptaresult.pointsToSet(urlSlot, connValue.defSite)
-                urlValues foreach {
-                  urlValue =>
-                    println("URL value at " + node.descriptor + "@" + node.node.getContext.getLocUri + "\nis:\n" + urlMap.getOrElse(urlValue.defSite, msetEmpty).mkString("\n"))
+                val urlSlot = VarSlot(urlInvNode.argNames.head)
+                val urlValues = idfg.ptaresult.pointsToSet(connValue.defSite, urlSlot)
+                urlValues foreach { urlValue =>
+                  println("URL value at " + node.descriptor + "@" + node.node.node.getContext.getLocUri + "\nis:\n" + urlMap.getOrElse(urlValue.defSite, msetEmpty).mkString("\n"))
                 }
             }
         }

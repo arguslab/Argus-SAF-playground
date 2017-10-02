@@ -1,8 +1,8 @@
-package org.argus.play
+package org.argus.play.cli
 
 import org.apache.commons.cli._
 import org.argus.jawa.core.util._
-import org.argus.play.random.{CountComponentNum, NativeStatistics, SecurityAnalysis}
+import org.argus.play.random.{CountComponentNum, IntentResolver, NativeStatistics, SecurityAnalysis}
 
 /**
   * Created by fgwei on 3/8/17.
@@ -11,7 +11,7 @@ object Main extends App {
   private val version = org.argus.BuildInfo.version
 
   object Mode extends Enumeration {
-    val ARGUS_SAF_PLAY, NATIVE_STATISTICS, COUNT_COMPONENT_NUM, SECURITY_ANALYSIS = Value
+    val ARGUS_SAF_PLAY, NATIVE_STATISTICS, COUNT_COMPONENT_NUM, SECURITY_ANALYSIS, INTENT_RESOLVE = Value
   }
 
   private val nativeStatisticsOptions: Options = new Options
@@ -57,7 +57,8 @@ object Main extends App {
         println("""Available Modes:
                   |  c[ount_component_num]  Count component numbers for given apks.
                   |  n[ative_statistics]    Generate statistics for native lib usage of given dataset.
-                  |  s[ecurity_analysis]    Perform security analysis.""".stripMargin)
+                  |  s[ecurity_analysis]    Perform security analysis.
+                  |  i[ntent_resolve]       Resolve all intent.""".stripMargin)
         println("")
       case Mode.NATIVE_STATISTICS =>
         formatter.printHelp("n[ative_statistics] <file_apk/dir> <output_dir>", nativeStatisticsOptions)
@@ -65,6 +66,8 @@ object Main extends App {
         println("c[ount_component_num] <file_apk/dir> <output_dir> <file>")
       case Mode.SECURITY_ANALYSIS =>
         formatter.printHelp("s[ecurity_analysis] <file_apk/dir> <output_dir>", securityAnalysisOptions)
+      case Mode.INTENT_RESOLVE =>
+        println("i[ntent_resolve] <file_apk/dir> <output_dir>")
     }
   }
 
@@ -98,6 +101,9 @@ object Main extends App {
       } else if (opt.equalsIgnoreCase("s") || opt.equalsIgnoreCase("security_analysis")) {
         cmdSecurityAnalysis(commandLine)
         cmdFound = true
+      } else if (opt.equalsIgnoreCase("i") || opt.equalsIgnoreCase("intent_resolve")) {
+        cmdIntentResolver(commandLine)
+        cmdFound = true
       }
     }
   } catch {
@@ -117,7 +123,7 @@ object Main extends App {
 
   case class ArgNotEnoughException(msg: String) extends Exception(msg)
 
-  private def cmdNativeStatistics(cli: CommandLine) = {
+  private def cmdNativeStatistics(cli: CommandLine): Unit = {
     var outputPath: String = "."
     var sourcePath: String = null
     var startNum: Int = 0
@@ -154,7 +160,7 @@ object Main extends App {
       NativeStatistics(outputPath)
   }
 
-  private def cmdCountComponentNum(cli: CommandLine) = {
+  private def cmdCountComponentNum(cli: CommandLine): Unit = {
     var outputPath: String = "."
     var sourcePath: String = null
     var file: String = null
@@ -170,7 +176,21 @@ object Main extends App {
     CountComponentNum(sourcePath, outputPath, file)
   }
 
-  private def cmdSecurityAnalysis(cli: CommandLine) = {
+  private def cmdIntentResolver(cli: CommandLine): Unit = {
+    var outputPath: String = "."
+    var sourcePath: String = null
+    try {
+      sourcePath = cli.getArgList.get(1)
+      outputPath = cli.getArgList.get(2)
+    } catch {
+      case _: Exception =>
+        usage(Mode.COUNT_COMPONENT_NUM)
+        System.exit(0)
+    }
+    IntentResolver(sourcePath, outputPath)
+  }
+
+  private def cmdSecurityAnalysis(cli: CommandLine): Unit = {
     var outputPath: String = "."
     var sourcePath: String = null
     var startNum: Int = 0

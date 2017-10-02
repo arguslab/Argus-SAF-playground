@@ -3,10 +3,9 @@ package org.argus.play.random
 import java.io.{File, FileWriter}
 
 import org.argus.amandroid.alir.componentSummary.ApkYard
-import org.argus.amandroid.core.AndroidGlobalConfig
 import org.argus.amandroid.core.appInfo.AppInfoCollector
 import org.argus.amandroid.core.decompile.{ConverterUtil, DecompileLayout, DecompileStrategy, DecompilerSettings}
-import org.argus.jawa.core.{DefaultLibraryAPISummary, DefaultReporter}
+import org.argus.jawa.core.DefaultReporter
 import org.argus.jawa.core.util._
 import org.argus.play.cli.util.CliLogger
 
@@ -42,10 +41,10 @@ object CountComponentNum {
           /******************* Load given Apk *********************/
           val reporter = new DefaultReporter
           val layout = DecompileLayout(outputUri)
-          val strategy = DecompileStrategy(new DefaultLibraryAPISummary(AndroidGlobalConfig.settings.third_party_lib_file), layout)
+          val strategy = DecompileStrategy(layout)
           val settings = DecompilerSettings(debugMode = false, forceDelete = true, strategy, reporter)
           val yard = new ApkYard(reporter)
-          val apk = yard.loadApk(fileUri, settings, collectInfo = false)
+          val apk = yard.loadApk(fileUri, settings, collectInfo = false, resolveCallBack = false)
           outApkUri = apk.model.layout.outputSrcUri
           val manifestUri = FileUtil.appendFileName(outApkUri, "AndroidManifest.xml")
           val mfp = AppInfoCollector.analyzeManifest(reporter, manifestUri)
