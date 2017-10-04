@@ -53,7 +53,7 @@ object RetriveStringFromSourceOrSink {
     apk.model.getEnvMap.get(component) match {
       case Some((esig, _)) =>
         val ep = apk.getMethod(esig).get
-        implicit val factory = new RFAFactFactory
+        implicit val factory: RFAFactFactory = new RFAFactFactory
         val initialfacts = AndroidRFAConfig.getInitialFactsForMainEnvironment(ep)
         val idfg = AndroidReachingFactsAnalysis(apk, ep, initialfacts, new ClassLoadManager, new Context(apk.nameUri), timeout = None)
         val iddResult = InterProceduralDataDependenceAnalysis(apk, idfg)
