@@ -16,6 +16,7 @@ object Main extends App {
 
   private val nativeStatisticsOptions: Options = new Options
   private val securityAnalysisOptions: Options = new Options
+  private val intentResolveOptions: Options = new Options
   private val allOptions: Options = new Options
 
   private def createOptions(): Unit = {
@@ -37,6 +38,8 @@ object Main extends App {
     securityAnalysisOptions.addOption(startNumOption)
     securityAnalysisOptions.addOption(endNumOption)
     securityAnalysisOptions.addOption(checkersOption)
+    intentResolveOptions.addOption(startNumOption)
+    intentResolveOptions.addOption(endNumOption)
     allOptions.addOption(timeoutOption)
     allOptions.addOption(versionOption)
     allOptions.addOption(startNumOption)
@@ -58,7 +61,7 @@ object Main extends App {
                   |  c[ount_component_num]  Count component numbers for given apks.
                   |  n[ative_statistics]    Generate statistics for native lib usage of given dataset.
                   |  s[ecurity_analysis]    Perform security analysis.
-                  |  i[ntent_resolve]       Resolve all intent.""".stripMargin)
+                  |  i[ntent_resolve]       Resolve all intents.""".stripMargin)
         println("")
       case Mode.NATIVE_STATISTICS =>
         formatter.printHelp("n[ative_statistics] <file_apk/dir> <output_dir>", nativeStatisticsOptions)
@@ -67,7 +70,7 @@ object Main extends App {
       case Mode.SECURITY_ANALYSIS =>
         formatter.printHelp("s[ecurity_analysis] <file_apk/dir> <output_dir>", securityAnalysisOptions)
       case Mode.INTENT_RESOLVE =>
-        println("i[ntent_resolve] <file_apk/dir> <output_dir>")
+        formatter.printHelp("i[ntent_resolve] <file_apk/dir> <output_dir>", intentResolveOptions)
     }
   }
 
@@ -179,15 +182,23 @@ object Main extends App {
   private def cmdIntentResolver(cli: CommandLine): Unit = {
     var outputPath: String = "."
     var sourcePath: String = null
+    var startNum: Int = 0
+    var endNum: Int = Integer.MAX_VALUE
+    if(cli.hasOption("sn") || cli.hasOption("start-num")) {
+      startNum = Integer.parseInt(cli.getOptionValue("sn"))
+    }
+    if(cli.hasOption("en") || cli.hasOption("end-num")) {
+      endNum = Integer.parseInt(cli.getOptionValue("en"))
+    }
     try {
       sourcePath = cli.getArgList.get(1)
       outputPath = cli.getArgList.get(2)
     } catch {
       case _: Exception =>
-        usage(Mode.COUNT_COMPONENT_NUM)
+        usage(Mode.INTENT_RESOLVE)
         System.exit(0)
     }
-    IntentResolver(sourcePath, outputPath)
+    IntentResolver(sourcePath, outputPath, startNum, endNum)
   }
 
   private def cmdSecurityAnalysis(cli: CommandLine): Unit = {

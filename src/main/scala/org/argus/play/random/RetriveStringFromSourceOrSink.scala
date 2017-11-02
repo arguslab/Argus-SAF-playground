@@ -8,10 +8,10 @@ import org.argus.amandroid.alir.taintAnalysis.{AndroidDataDependentTaintAnalysis
 import org.argus.amandroid.core.AndroidGlobalConfig
 import org.argus.amandroid.core.decompile.{DecompileLayout, DecompileStrategy, DecompilerSettings}
 import org.argus.jawa.alir.Context
-import org.argus.jawa.alir.controlFlowGraph.{ICFGCallNode, ICFGInvokeNode, ICFGNode, InterProceduralControlFlowGraph}
-import org.argus.jawa.alir.dataDependenceAnalysis.InterProceduralDataDependenceAnalysis
+import org.argus.jawa.alir.cfg.{ICFGCallNode, ICFGInvokeNode, ICFGNode, InterProceduralControlFlowGraph}
+import org.argus.jawa.alir.dda.InterProceduralDataDependenceAnalysis
+import org.argus.jawa.alir.pta.rfa.SimHeap
 import org.argus.jawa.alir.pta.{PTAConcreteStringInstance, PTAResult, VarSlot}
-import org.argus.jawa.alir.pta.reachingFactsAnalysis.SimHeap
 import org.argus.jawa.core._
 import org.argus.jawa.core.util._
 
