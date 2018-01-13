@@ -15,44 +15,36 @@ import org.argus.jawa.alir.dda.InterProceduralDataDependenceAnalysis
 import org.argus.jawa.alir.pta.rfa.SimHeap
 import org.argus.jawa.alir.pta.{Instance, PTAConcreteStringInstance, PTAResult, VarSlot}
 import org.argus.jawa.core._
-import org.argus.jawa.core.util._
+import org.argus.jawa.core.util.{ISortedMap, MSet, _}
+import org.argus.jawa.alir.reachability
+import org.argus.jawa.alir.reachability.ReachabilityAnalysis
 
-/**
-public String getInnerSDCard()
-        {
-          return Environment.getExternalStorageDirectory().getPath();
-        }
-public String getInnerSDCard2()
-        {
-          return Environment.getExternalStorageDirectory().getPath();
-        }
-        String name2 = "/ztsecondfile";
-    		File saveFile2=new File(name2);
-            FileOutputStream outputStream2 =new FileOutputStream(saveFile2);
-            outputStream2.write(content.getBytes());
-            outputStream2.flush();
-            outputStream2.close();
+import scala.collection.GenSet
 
-    		File saveFile=new File(getInnerSDCard()+"ztfirstfile.txt");
-            FileOutputStream outputStream =new FileOutputStream(saveFile);
-            outputStream.write(content.getBytes());
-            outputStream.flush();
-            outputStream.close();
-
-  File saveFile4=new File(getInnerSDCard2()+"ztfirstfile.txt");
-            FileOutputStream outputStream4 =new FileOutputStream(saveFile);
-            outputStream4.write(content.getBytes());
-            outputStream4.flush();
-            outputStream4.close();
-
-
-
-  Created by Tong Zhu
-  */
 object FileResolver {
+  class ListNode(value : Context){
+    val v = value
+    var head : ListNode = null
+    var child : ListNode = null
+    def getHead(): Context ={
+      if (head == null){
+        null
+      }else{
+        head.v
+      }
+    }
+    def getChild(): Context ={
+      if (child == null){
+        null
+      }else{
+        child.v
+      }
+    }
+  }
   def main(args: Array[String]): Unit = {
     val fileUri = FileUtil.toUri(args(0))
     val outputUri = FileUtil.toUri(args(1))
+
     /******************* Load APK *********************/
 
     val reporter = new DefaultReporter
@@ -63,251 +55,865 @@ object FileResolver {
     val apk = yard.loadApk(fileUri, settings, collectInfo = true, resolveCallBack = true)
 
     /******************* Do Taint analysis *********************/
+    val ListNodeSet : MSet[ListNode] = msetEmpty
+    val ChildNodeSet : MSet[ListNode] = msetEmpty
+    val urlMap: MMap[Context, MSet[Any]] = mmapEmpty
+    val urlMapPlus: MMap[Context, MList[Any]] = mmapEmpty
+    val urlMap2: MMap[Context, Context] = mmapEmpty
+    val urlMap2Plus: MMap[Context, MSet[Any]] = mmapEmpty
+    val urlMap3: MMap[Context, MSet[Any]] = mmapEmpty
+    var test3 : MSet[Any] = msetEmpty
+    var test4 : MSet[Any] = msetEmpty
+    val IntersectSet : GenSet[Signature] = GenSet(new Signature("Ljava/io/Writer;.write:(Ljava/lang/String;)V"),
+     new Signature("Landroid/content/Intent;.putExtra:(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;"),
+      new Signature("Ljava/io/FileWriter;.<init>:(Ljava/lang/String;)V"),
+      new Signature("Landroid/database/sqlite/SQLiteDatabase;.update:(Ljava/lang/String;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I"),
+      new Signature("Landroid/database/sqlite/SQLiteDatabase;.insert:(Ljava/lang/String;Ljava/lang/String;Landroid/content/ContentValues;)J"),
+      new Signature("Ljava/io/File;.<init>:(Ljava/io/File;Ljava/lang/String;)V"),
+      new Signature("Ljava/io/FileWriter;.<init>:(Ljava/io/File;Z)V"),
+      new Signature("Landroid/os/Environment;.getExternalStorageDirectory:()Ljava/io/File;"),
+      new Signature("Landroid/content/Context;.getPackageName:()Ljava/lang/String;"),
+      new Signature("Ljava/util/Date;.<init>:()V"),
+      new Signature("Ljava/io/FileOutputStream;.<init>:(Ljava/io/File;)V"),
+      new Signature("Landroid/content/Intent;.getStringExtra:(Ljava/lang/String;)Ljava/lang/String;"),
+      new Signature("Landroid/content/SharedPreferences;.edit:()Landroid/content/SharedPreferences$Editor;"),
+      new Signature("Ljava/io/FileOutputStream;.write:([B)V"),
+      new Signature("Ljava/io/FileWriter;.write:(Ljava/lang/String;)V"),
+      new Signature("Ljava/io/BufferedWriter;.write:(Ljava/lang/String;)V"),
+      new Signature("Ljava/io/RandomAccessFile;.writeChar:(I)V"),
+      new Signature("Ljava/io/DataOutputStream;.writeBytes:(Ljava/lang/String;)V"),
+      new Signature("Landroid/content/SharedPreferences$Editor;.putString:(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;"),
+      new Signature("Landroid/content/SharedPreferences$Editor;.putInt:(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;"),
+      new Signature("Landroid/content/SharedPreferences$Editor;.putBoolean:(Ljava/lang/String;Z)Landroid/content/SharedPreferences$Editor;"),
+      new Signature("Landroid/database/sqlite/SQLiteDatabase;.insert:(Ljava/lang/String;Ljava/lang/String;Landroid/content/ContentValues;)J"),
+      new Signature("Landroid/database/sqlite/SQLiteDatabase;.update:(Ljava/lang/String;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I"))
+    var test6 : MSet[Any] = msetEmpty
+    var test7 : MSet[Context] = msetEmpty
+    var DB_Name : MSet[String] = msetEmpty
+    val urlMap17: MMap[Any, MSet[Any]] = mmapEmpty
+    val urlMap18: MMap[Context, Any] = mmapEmpty
+    val urlMap19: MMap[Context, MSet[Any]] = mmapEmpty
+    var context1: MSet[Any] = msetEmpty
+    var urlMapModel: MMap[Any, String] = mmapEmpty
+    val L: MList[Any] = mlistEmpty
+    var IndexMap0: MMap[Any, Any] = mmapEmpty
+    val IndexMap: MMap[Context, MSet[MMap[Any, Any]]] = mmapEmpty
+    val IndexMap2: MMap[String, String] = mmapEmpty
+    var IndexMapCopy: MMap[Context, MSet[MMap[Any, Any]]] = mmapEmpty
+    val IndexMap3: MMap[Context, MSet[MMap[Any, Any]]] = mmapEmpty
+    val urlMapPlus3: MMap[Context, MList[Any]] = mmapEmpty
+    val YourForNum: Int = 5
+    /*urlMapSignature = urlMapSignature ++ Map(new Signature("Landroid/os/Environment;.getExternalStorageDirectory:()Ljava/io/File;") -> "sdcard/ ",
+      "Landroid/content/Context;.getPackageName:()Ljava/lang/String;" -> "getPackageName(which can be resolved in the new version)/ ",
+      "Ljava/util/Date;.<init>:()V" -> "DataTme ",
+      "Landroid/content/Context;.getPackageName:()Ljava/lang/String;" -> "PackageName",
+      "wait to perfect" -> "wait to perfect")*/
+    var compNum: Int = 0
+    val realcompNnm = apk.model.getComponents.size
+    apk.model.getComponents.foreach{
+      iComponents =>
+        compNum += 1
+        var mmapp:IMap[JawaType, ISet[Signature]] = imapEmpty
+        mmapp = reachability.ReachabilityAnalysis.getReachableMethodsBySBCG(apk ,Set(iComponents) )
+        //mmapp.foreach{
+          //case( keys , values) =>
+            //if(values.intersect(IntersectSet).nonEmpty){
+              apk.model.getEnvMap.get(iComponents) match {
+                case Some((esig, _)) =>
+                  //try {
+                  val ep = apk.getMethod(esig).get
+                  implicit val heap: SimHeap = new SimHeap
+                  val initialfacts = AndroidReachingFactsAnalysisConfig.getInitialFactsForMainEnvironment(ep)
+                  val icfg = new InterProceduralControlFlowGraph[ICFGNode]
+                  val ptaresult = new PTAResult
+                  val sp = new AndroidSummaryProvider(apk)
+                  AndroidReachingFactsAnalysisConfig.resolve_static_init = true
+                  val analysis = new AndroidReachingFactsAnalysis(
+                    apk, icfg, ptaresult, AndroidModelCallHandler, sp.getSummaryManager, new ClassLoadManager,
+                    AndroidReachingFactsAnalysisConfig.resolve_static_init,
+                    timeout = None)
+                  val idfg = analysis.build(ep, initialfacts, new Context(apk.nameUri))
+                  //idfg.ptaresult.pprint()
+                  //print("==========================================" + "\n")
+                  //idfg.icfg.toDot(new PrintWriter(System.out))
+                  //print( idfg.icfg.toString() + "\n")
+                  val iddResult = InterProceduralDataDependenceAnalysis(apk, idfg)
+                  val ssm = new DataLeakageAndroidSourceAndSinkManager(AndroidGlobalConfig.settings.sas_file)
+                  val taint_analysis_result = AndroidDataDependentTaintAnalysis(yard, iddResult, idfg.ptaresult, ssm)
+                  /******************* Resolve and retrieve all file's name value *********************/
+                  idfg.icfg.nodes foreach{
+                    i =>
+                      L += i.getContext.getLocUri
+                  }
+                  idfg.icfg.nodes foreach {
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/io/File;.<init>:(Ljava/lang/String;)V")
+                      |cn.getCalleeSig == new Signature("Ljava/io/FileWriter;.<init>:(Ljava/lang/String;)V")
+                      |cn.getCalleeSig == new Signature("Ljava/io/FileOutputStream;.<init>:(Ljava/io/File;)V")
+                      |cn.getCalleeSig == new Signature("Ljava/io/OutputStreamWriter;.<init>:(Ljava/io/OutputStream;)V")
+                      |cn.getCalleeSig == new Signature("Ljava/io/BufferedWriter;.<init>:(Ljava/io/Writer;)V") =>
+                      val urlSlot = VarSlot(cn.argNames.head)
+                      val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
+                      val strSlot = VarSlot(cn.argNames(1))
+                      val urlvalues = idfg.ptaresult.pointsToSet(cn.getContext , strSlot)
+                      for(url <- urls;
+                          urlvalue <- urlvalues) {
+                        IndexMap0.getOrElseUpdate(urlvalue.defSite.getCurrentLocUri, urlvalue)
+                        if(urlvalue.isInstanceOf[PTAConcreteStringInstance]){
+                          val urlvaluestring = urlvalue.asInstanceOf[PTAConcreteStringInstance].string
+                          IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvaluestring
+                        }else if (urlvalue.isInstanceOf[Instance])
+                        {
+                          val urlvaluedef = urlvalue.asInstanceOf[Instance].defSite
+                          IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvaluedef
+                        }else{
+                          val urlvalueelse = "ANY"
+                          IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvalueelse
+                        }
+                        IndexMap.getOrElseUpdate(url.defSite, msetEmpty) += IndexMap0
+                        IndexMap0 = mmapEmpty
+                      }
+                    /************************************************************************/
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/content/SharedPreferences$Editor;.putString:(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;") =>
+                      val urlSlot = VarSlot(cn.argNames.head)
+                      val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
+                      test7 += cn.context
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteOpenHelper;.<init>:(Landroid/content/Context;Ljava/lang/String;Landroid/database/sqlite/SQLiteDatabase$CursorFactory;I)V") =>
+                      val urlSlot = VarSlot(cn.argNames.head)
+                      val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
+                      val strSlot = VarSlot(cn.argNames(2))
+                      val urlvalues = idfg.ptaresult.pointsToSet(cn.getContext , strSlot)
+                      for(urlvalue <- urlvalues){
+                        val urlvaluestring = urlvalue.asInstanceOf[PTAConcreteStringInstance].string
+                        DB_Name += urlvaluestring
+                      }
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.execSQL:(Ljava/lang/String;)V") =>
+                      val urlSlot = VarSlot(cn.argNames.head)
+                      val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
+                      test7 += cn.context
+                      val strSlot = VarSlot(cn.argNames(1))
+                      val urlvalues = idfg.ptaresult.pointsToSet(cn.getContext , strSlot)
+                      for(urlvalue <- urlvalues){
+                        val urlvaluestring = urlvalue.asInstanceOf[PTAConcreteStringInstance].string
+                        if(urlvaluestring.split("[(]")(0).trim().split("[ ]")(0).trim().equalsIgnoreCase("create")){
+                          val structure = urlvaluestring.split("[(]")(1).trim().split("[)]")(0).trim()
+                          val TBName = urlvaluestring.split("[(]")(0).trim().split("[ ]").last.trim()
+                          IndexMap2.getOrElseUpdate(TBName, structure)
+                        }
+                      }
+                    /************************************************************************/
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.update:(Ljava/lang/String;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I")|cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.insert:(Ljava/lang/String;Ljava/lang/String;Landroid/content/ContentValues;)J") =>
+                      val urlSlot = VarSlot(cn.argNames.head)
+                      val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
+                      test7 += cn.context
+                      val strSlot = VarSlot(cn.argNames(1))
+                      val urlvalues = idfg.ptaresult.pointsToSet(cn.getContext , strSlot)
+                      for(url <- test7;
+                          urlvalue <- urlvalues) {
+                        IndexMap0.getOrElseUpdate(urlvalue.defSite.getCurrentLocUri, urlvalue)
+                        if(urlvalue.isInstanceOf[PTAConcreteStringInstance]){
+                          val urlvaluestring = urlvalue.asInstanceOf[PTAConcreteStringInstance].string
+                          IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvaluestring
+                        }else if (urlvalue.isInstanceOf[Instance])
+                        {
+                          val urlvaluedef = urlvalue.asInstanceOf[Instance].defSite
+                          IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvaluedef
+                        }else{
+                          val urlvalueelse = "ANY"
+                          IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvalueelse
+                        }
+                        IndexMap.getOrElseUpdate(url, msetEmpty) += IndexMap0
+                        IndexMap0 = mmapEmpty
+                      }
+                      test7 = msetEmpty
 
-    val component = apk.model.getComponents.last // get any component you want to perform analysis
-    apk.model.getEnvMap.get(component) match {
-      case Some((esig, _)) =>
-        val ep = apk.getMethod(esig).get
-        implicit val heap: SimHeap = new SimHeap
-        val initialfacts = AndroidReachingFactsAnalysisConfig.getInitialFactsForMainEnvironment(ep)
-        val icfg = new InterProceduralControlFlowGraph[ICFGNode]
-        val ptaresult = new PTAResult
-        val sp = new AndroidSummaryProvider(apk)
-        val analysis = new AndroidReachingFactsAnalysis(
-          apk, icfg, ptaresult, AndroidModelCallHandler, sp.getSummaryManager, new ClassLoadManager,
-          AndroidReachingFactsAnalysisConfig.resolve_static_init,
-          timeout = None)
-        val idfg = analysis.build(ep, initialfacts, new Context(apk.nameUri))
-        idfg.ptaresult.pprint()
-        idfg.icfg.toDot(new PrintWriter(System.out))
-        val iddResult = InterProceduralDataDependenceAnalysis(apk, idfg)
-        val ssm = new DataLeakageAndroidSourceAndSinkManager(AndroidGlobalConfig.settings.sas_file)
-        val taint_analysis_result = AndroidDataDependentTaintAnalysis(yard, iddResult, idfg.ptaresult, ssm)
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/io/File;.<init>:(Ljava/io/File;Ljava/lang/String;)V")
+                      | cn.getCalleeSig == new Signature("Ljava/io/FileWriter;.<init>:(Ljava/io/File;Z)V")=>
+                      val urlSlot = VarSlot(cn.argNames.head)
+                      /****cn.getCalleeSig.methodName*********/
+                      val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
+                      val strSlot = VarSlot(cn.argNames(1))
+                      val urlvalues = idfg.ptaresult.pointsToSet(cn.getContext , strSlot)
+                      val strSlot2 = VarSlot(cn.argNames(2))
+                      val urlvalues2 = idfg.ptaresult.pointsToSet(cn.getContext , strSlot2)
+                      for(url <- urls;
+                          urlvalue <- urlvalues ++ urlvalues2) {
+                        IndexMap0.getOrElseUpdate(urlvalue.defSite.getCurrentLocUri, urlvalue)
+                        if(urlvalue.isInstanceOf[PTAConcreteStringInstance]){
+                          val urlvaluestring = urlvalue.asInstanceOf[PTAConcreteStringInstance].string
+                          IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvaluestring
+                        }else if (urlvalue.isInstanceOf[Instance])
+                        {
+                          val urlvaluedef = urlvalue.asInstanceOf[Instance].defSite
+                          IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvaluedef
+                        }else{
+                          val urlvalueelse = "ANY"
+                          IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvalueelse
+                        }
+                        IndexMap.getOrElseUpdate(url.defSite, msetEmpty) += IndexMap0
+                        IndexMap0 = mmapEmpty
+                      }
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/os/Environment;.getExternalStorageDirectory:()Ljava/io/File;") =>
+                      test3 += cn.context
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/content/Context;.getPackageName:()Ljava/lang/String;") =>
+                      var test5 : MSet[Any] = msetEmpty
+                      test5 += cn.context
+                      test5.foreach(
+                        url =>
+                          urlMapModel = urlMapModel ++ Map(url -> cn.getOwner.getClassType.getPackageName)
+                      )
 
-        /******************* Resolve all URL value *********************/
-        val urlMap: MMap[Context, MSet[Any]] = mmapEmpty
-        val urlMap2: MMap[Context, Context] = mmapEmpty
-        val urlMap3: MMap[Context, MSet[Any]] = mmapEmpty
-        var test3 : MSet[Any] = msetEmpty
-        val urlMap5: MMap[Context, MSet[Any]] = mmapEmpty
-        val urlMap4: MMap[Context, Context] = mmapEmpty
-        val urlMap6: MMap[Context, MSet[String]] = mmapEmpty
-        val urlMap7: MMap[Context, Context] = mmapEmpty
-        val urlMap8: MMap[Context, Context] = mmapEmpty
-        val urlMap9: MMap[Any, Any] = mmapEmpty
-        val urlMap9plus: MMap[Context, MSet[Any]] = mmapEmpty
-        val urlMap10: MMap[Context, Context] = mmapEmpty
-        val urlMap11: MMap[Context, Context] = mmapEmpty
-        val urlMap15: MMap[Context, MSet[Any]] = mmapEmpty
-        val urlMap16: MMap[Context, MSet[Any]] = mmapEmpty
-        idfg.icfg.nodes foreach {
-          case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/io/File;.<init>:(Ljava/lang/String;)V")|cn.getCalleeSig == new Signature("Ljava/io/FileWriter;.<init>:(Ljava/lang/String;)V") =>
-            val urlSlot = VarSlot(cn.argNames.head)
-            val urls = idfg.ptaresult.pointsToSet(cn.getContext, urlSlot)
-            val strSlot = VarSlot(cn.argNames(1))
-            val urlvalues = idfg.ptaresult.pointsToSet(cn.getContext, strSlot)
-            for(url <- urls;
-                urlvalue <- urlvalues) {
-              urlMap4.getOrElseUpdate(urlvalue.defSite, url.defSite)
-            }
-            val urlvalues2 = idfg.ptaresult.pointsToSet(cn.getContext, strSlot) map {
-              case pcsi: PTAConcreteStringInstance => pcsi.string
-              case pcsi: Instance => pcsi.defSite
-              case _ => "ANY"
-            }
-            for(url <- urls;
-                urlvalue <- urlvalues2) {
-              urlMap.getOrElseUpdate(url.defSite, msetEmpty) += urlvalue
-            }
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/util/Date;.<init>:()V") =>
+                      test6 += cn.context
+                      val urlSlot = VarSlot(cn.argNames.head)
+                      val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
+                      urls.foreach(
+                        url =>
+                          test6 += url.defSite
+                      )
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/content/Intent;.putExtra:(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;") =>
+                      val urlSlot = VarSlot(cn.argNames(1))
+                      val urls = idfg.ptaresult.pointsToSet(cn.getContext,urlSlot) map {
+                        case pcsi: PTAConcreteStringInstance => pcsi.string
+                        case pcsi: Instance => pcsi.defSite
+                        case _ => "ANY"
+                      }
+                      val strSlot = VarSlot(cn.argNames(2))
+                      val urlvalues2 = idfg.ptaresult.pointsToSet(cn.getContext,strSlot) map {
+                        case pcsi: PTAConcreteStringInstance => pcsi.string
+                        case pcsi: Instance => pcsi.defSite
+                        case _ => "ANY"
+                      }
+                      for(urlvalue <- urlvalues2;
+                          url <- urls) {
+                        urlMap17.getOrElseUpdate(url,msetEmpty) += urlvalue
+                      }
 
-          case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/lang/StringBuilder;.<init>:(Ljava/lang/String;)V") => //Ljava/lang/String;.valueOf:(Ljava/lang/Object;)Ljava/lang/String;
-            var test4 : Set[Context] = Set()
-            test4 += cn.context
-            val urlSlot = VarSlot(cn.argNames.head)
-            val urls = idfg.ptaresult.pointsToSet(cn.getContext, urlSlot)
-            val strSlot = VarSlot(cn.argNames(1))
-            val urlvalues3 = idfg.ptaresult.pointsToSet(cn.getContext, strSlot)
-            for(urlvalue <- test4;
-                url <- urls) {
-              urlMap10.getOrElseUpdate(urlvalue,url.defSite)
-            }
-            for(urlvalue <- test4;
-                url <- urlvalues3) {
-              urlMap11.getOrElseUpdate(urlvalue,url.defSite)
-            }
-            val urlvalues4 = idfg.ptaresult.pointsToSet(cn.getContext, strSlot) map {
-              case pcsi: PTAConcreteStringInstance => pcsi.string
-              case pcsi: Instance => pcsi.defSite
-              case _ => "ANY"
-            }
-            for(urlvalue <- urlvalues4;
-                url <- urls) {
-              urlMap5.getOrElseUpdate(url.defSite, msetEmpty) += urlvalue
-            }
-            for(urlvalue <- urlvalues4;
-                url <- urls) {
-              urlMap15.getOrElseUpdate(url.defSite, msetEmpty) += urlvalue
-            }
-          case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/lang/StringBuilder;.append:(Ljava/lang/String;)Ljava/lang/StringBuilder;") => //Ljava/lang/String;.valueOf:(Ljava/lang/Object;)Ljava/lang/String;
-            var test4 : Set[Context] = Set()
-            test4 += cn.context
-            val urlSlot = VarSlot(cn.argNames.head)
-            val urls = idfg.ptaresult.pointsToSet(cn.getContext, urlSlot)
-            val strSlot = VarSlot(cn.argNames(1))
-            val urlvalues3 = idfg.ptaresult.pointsToSet(cn.getContext, strSlot)
-            for(urlvalue <- test4;
-                url <- urls) {
-              urlMap10.getOrElseUpdate(urlvalue,url.defSite)
-            }
-            val urlvalues4 = idfg.ptaresult.pointsToSet(cn.getContext, strSlot) map {
-              case pcsi: PTAConcreteStringInstance => pcsi.string
-              case pcsi: Instance => pcsi.defSite
-              case _ => "ANY"
-            }
-            for(urlvalue <- urlvalues4;
-                url <- urls) {
-              urlMap5.getOrElseUpdate(url.defSite, msetEmpty) += urlvalue
-              urlMap16.getOrElseUpdate(url.defSite, msetEmpty) += urlvalue
-            }
-            for(urlvalue <- urlvalues4;
-                url <- test4) {
-              urlMap16.getOrElseUpdate(url , msetEmpty) += urlvalue
-            }
-          case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/os/Environment;.getExternalStorageDirectory:()Ljava/io/File;") =>
-            test3 += cn.context
-          case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/io/File;.getPath:()Ljava/lang/String;") => //Ljava/lang/String;.valueOf:(Ljava/lang/Object;)Ljava/lang/String;
-            var test : Set[Context] = Set()
-            test += cn.context
-            val urlSlot = VarSlot(cn.argNames.head)
-            val urls = idfg.ptaresult.pointsToSet(cn.getContext, urlSlot)
-            for(urlvalue <- test;
-                url <- urls) {
-              urlMap8.getOrElseUpdate(urlvalue, url.defSite)
-            }
-          case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/lang/String;.valueOf:(Ljava/lang/Object;)Ljava/lang/String;") => //Ljava/lang/String;.valueOf:(Ljava/lang/Object;)Ljava/lang/String;
-            var test2 : Set[Context] = Set()
-            test2 += cn.context
-            val urlSlot = VarSlot(cn.argNames.head)
-            val urls = idfg.ptaresult.pointsToSet(cn.getContext, urlSlot)
-            for(urlvalue <- test2;
-                url <- urls) {
-              urlMap7.getOrElseUpdate(urlvalue, url.defSite)
-            }
-          case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/io/FileOutputStream;.<init>:(Ljava/io/File;)V")|cn.getCalleeSig == new Signature("Ljava/io/BufferedWriter;.<init>:(Ljava/io/Writer;)V") =>
-            val urlSlot2 = VarSlot(cn.argNames.head)
-            val urls2 = idfg.ptaresult.pointsToSet(cn.getContext, urlSlot2)
-            val strSlot2 = VarSlot(cn.argNames(1))
-            val urlvalues2 = idfg.ptaresult.pointsToSet(cn.getContext, strSlot2)
-            for(urlvalue <- urlvalues2;
-                url <- urls2) {
-              urlMap2.getOrElseUpdate(urlvalue.defSite, url.defSite)
-            }
-          case _ =>
-        }
-        /*******************************************/
-        urlMap2.keys.foreach{
-          i=>
-            urlMap.keys.foreach{
-              j=>
-                if (i ==j){
-                  urlMap3.getOrElseUpdate(urlMap2(i), urlMap(j))
-                }
-            }
-        }
-        urlMap7.keys.foreach{//change valveOf to environment by .path()
-          i=>
-            urlMap8.keys.foreach{
-              j=>
-                if (urlMap7(i) ==j){
-                  urlMap9plus.getOrElseUpdate(i,msetEmpty ) +=urlMap8(j)
-                }
-            }
-        }
-        urlMap9plus.keys.foreach{//exchange valueOf with environment
-          i=>
-            urlMap5.keys.foreach{
-              j=>
-                if (urlMap5(j).contains(i)){
-                  urlMap5(j) -= i
-                  urlMap5(j) += urlMap9plus(i)
-                }
-            }
-        }
-        urlMap9plus.keys.foreach {//change environment to "SDCard"
-          i =>
-            test3.foreach{
-              j=>
-                if (urlMap9plus(i).contains(j)){
-                  urlMap9plus(i) -= j
-                  urlMap9plus(i) += "SDCard"
-                }
-            }
 
-        }
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/content/Intent;.getStringExtra:(Ljava/lang/String;)Ljava/lang/String;") =>
+                      var self : Set[Context] = Set()
+                      self += cn.context
+                      val strSlot = VarSlot(cn.argNames(1))
+                      val urlvalues2 = idfg.ptaresult.pointsToSet(cn.getContext,strSlot) map {
+                        case pcsi: PTAConcreteStringInstance => pcsi.string
+                        case pcsi: Instance => pcsi.defSite
+                        case _ => "ANY"
+                      }
+                      for(urlvalue <- urlvalues2;
+                          url <- self) {
+                        urlMap18.getOrElseUpdate(url,urlvalue)
+                      }
 
-        urlMap.keys.foreach{//exchange valueOf with environment
-          i=>
-            urlMap16.keys.foreach{
-              j=>
-                if (urlMap(i).contains(j)){
-                  urlMap(i) -= j
-                  urlMap(i) += urlMap16(j)
-                }
-            }
-        }
-        urlMap.keys.foreach{
-          i=>
-            urlMap9plus.keys.foreach{
-              j=>
-                if (urlMap(i).contains(j)){
-                  urlMap(i) -= j
-                  urlMap(i) += urlMap9plus(j)
-                }
-            }
-        }
+                    /*******************************************************************/
+                    case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/content/SharedPreferences;.edit:()Landroid/content/SharedPreferences$Editor;") =>
+                      /***************val a = cn.getCalleeSig.getSubSignature
+                        val b = cn.getCalleeSig.getClassName
+                        val c = cn.getCalleeSig.getDescriptor*******************/
+                      var selfs : MSet[Context] = msetEmpty
+                      selfs += cn.context
+                      val urlSlot2 = VarSlot(cn.argNames.head)
+                      val heads = idfg.ptaresult.pointsToSet(cn.getContext, urlSlot2)
+                      for(head <- heads;
+                          self <- selfs) {
+                        urlMap2Plus.getOrElseUpdate(self,msetEmpty) += head.defSite
+                      }
+                      selfs = msetEmpty
+                    case _ =>
+                  }
+                  IndexMap.keys.foreach{
+                    IndxK0 =>
+                      IndexMap.keys.foreach{
+                        IndxK =>
+                          IndexMap(IndxK).foreach{
+                            IndxMapV =>
+                              IndxMapV.keys.foreach{
+                                i =>
+                                  if(IndxK0 == IndxMapV(i)){
+                                    var LN = new ListNode(IndxK0)
+                                    LN.head = new ListNode(IndxK)
+                                    ListNodeSet += LN
+                                    var LN2 = new ListNode(IndxK)
+                                    LN2.child = new ListNode(IndxK0)
+                                    ListNodeSet += LN2
+                                  }
+                              }
+                          }
+                      }
+                  }
+                  ListNodeSet.foreach{
+                    l =>
+                      ListNodeSet.foreach{
+                        j =>
+                          if (l.head != null && l.head.v == j.v){
+                            j.child = l
+                          }else if(l.child != null && l.child.v == j.v){
+                            j.head = l
+                          }
+                      }
+                  }
+                  ListNodeSet.foreach {
+                    l =>
+                      var finalChild : ListNode = null
+                      if(l.child != null){
+                        finalChild = l.child
+                        while(finalChild.child != null){
+                          finalChild = finalChild.child
+                        }
+                      }else{
+                        finalChild = l
+                      }
+                      ChildNodeSet += finalChild
+                  }
+                  ChildNodeSet.foreach{
+                    l =>
+                      var finalHead : ListNode = l
+                      while(finalHead.head != null){
+                        IndexMap.keys.foreach{
+                          IdxMapK =>
+                            if(IdxMapK == finalHead.v){
+                              IndexMap.keys.foreach{
+                                K =>
+                                  if(K == finalHead.head.v){
+                                    IndexMap(K).foreach{
+                                      M =>
+                                        if(M.head._2 == finalHead.v){
+                                          IndexMap(K) -= M
+                                          IndexMap(K) = IndexMap(K) ++ IndexMap(IdxMapK)
+                                        }
+                                    }
+                                  }
+                              }
+                            }
+                        }
+                        finalHead = finalHead.head
+                      }
+                  }
+                  /********************************************************************/
+                  urlMap2Plus.keys.foreach{
+                    M2K =>
+                      urlMap2Plus(M2K).foreach{
+                        M2 =>
+                          idfg.icfg.nodes foreach {
+                            case cn: ICFGCallNode if cn.getContext == M2 && cn.getCalleeSig.getSubSignature == "getSharedPreferences:(Ljava/lang/String;I)Landroid/content/SharedPreferences;"=>
+                              val urlSlot = VarSlot(cn.argNames.head)
+                              val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
+                              var self : MSet[Context] = msetEmpty
+                              self += cn.context
+                              val strSlot = VarSlot(cn.argNames(1))
+                              val urlvalues = idfg.ptaresult.pointsToSet(cn.getContext , strSlot)
+                              for(urlvalue <- urlvalues) {
+                                IndexMap0.getOrElseUpdate(urlvalue.defSite.getCurrentLocUri, urlvalue)
+                                if(urlvalue.isInstanceOf[PTAConcreteStringInstance]){
+                                  val a = iComponents.getPackageName
+                                  val urlvaluestring = "data/data/" + a + "/" + urlvalue.asInstanceOf[PTAConcreteStringInstance].string + ".xml"
+                                  IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvaluestring
+                                }else if (urlvalue.isInstanceOf[Instance])
+                                {
+                                  val urlvaluedef = urlvalue.asInstanceOf[Instance].defSite
+                                  IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvaluedef
+                                }else{
+                                  val urlvalueelse = "ANY"
+                                  IndexMap0(urlvalue.defSite.getCurrentLocUri) = urlvalueelse
+                                }
+                                IndexMap.getOrElseUpdate(M2K, msetEmpty) += IndexMap0
+                                IndexMap0 = mmapEmpty
+                              }
+                              self = msetEmpty
+                            case cn: ICFGCallNode if cn.getContext == M2 && cn.getCalleeSig.getSubSignature == "getDefaultSharedPreferences:(Landroid/content/Context;)Landroid/content/SharedPreferences;"=>
+                              var self : MSet[Context] = msetEmpty
+                              self += cn.context
+                              for(urlvalue <- self) {
+                                IndexMap0.getOrElseUpdate(urlvalue.getCurrentLocUri, urlvalue)
+                                val a = iComponents.getPackageName
+                                val urlvaluestring = "data/data/" + a + ".xml"
+                                IndexMap0(urlvalue.getCurrentLocUri) = urlvaluestring
+                                IndexMap.getOrElseUpdate(M2K, msetEmpty) += IndexMap0
+                                IndexMap0 = mmapEmpty
+                              }
+                              self = msetEmpty
+                            case _ =>
+                          }
+                      }
 
-        /******************* Retrieve URL value *********************/
+                  }
+                  /*******************************************************************/
+                  /******************ModelMap*************************/
+                  test3.foreach{//change environment.getExternalStorageDirectory() to "sdcard/"
+                    j=>
+                      urlMapModel = urlMapModel ++ Map(j -> "sdcard/")
+                  }
+                  test6.foreach{
+                    j=>
+                      urlMapModel = urlMapModel ++ Map(j -> "DateTime ")
+                  }
 
-        val gisNodes = taint_analysis_result.getSinkNodes.filter{
-          node =>
-            node.node.node match {
-              case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/FileOutputStream;.write:([B)V") =>
-                true
-              case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/FileWriter;.write:(Ljava/lang/String;)V") =>
-                true
-              case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/BufferedWriter;.write:(Ljava/lang/String;)V") =>
-                true
-              case _ => false
-            }
-        }
-        println("*****************************************************")
-        gisNodes.foreach {
-          gisnode =>
+                  /*******************Link Map*****************************/
+                  urlMap17.keys.foreach {
+                    i =>
+                      urlMap18.keys.foreach {
+                        j =>
+                          IndexMap.keys.foreach {
+                            IndxMapK =>
+                              IndexMap(IndxMapK).foreach {
+                                m =>
+                                  m.keys.foreach {
+                                    k =>
+                                      if (j == m(k)) {
+                                        urlMap19.getOrElseUpdate(j, urlMap17(i))
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+                  urlMap19.keys.foreach{
+                    i=>
+                      IndexMap.keys.foreach{
+                        IndxMapK =>
+                          IndexMap(IndxMapK).foreach{
+                            j =>
+                              j.keys.foreach{
+                                k =>
+                                  if(j(k) == i){
+                                    j(k)  = urlMap19(i)
+                                  }
+                              }
+                          }
+                      }
+                  }
+                  /******************Loop*************************/
+                  for(i <- 1 to 5){
+                    IndexMapCopy = IndexMap
+                    context1 = msetEmpty
+                    IndexMap.keys.foreach{
+                      IndexMapK =>
+                        IndexMap(IndexMapK).foreach{
+                          IndexMapV =>
+                            IndexMapV.keys.foreach{
+                              j =>
+                                context1 += IndexMapV(j)
+                            }
+                        }
+                    }
+                    context1.foreach{
+                      con =>
+                        idfg.icfg.nodes foreach {
+                          case cn: ICFGCallNode if cn.getContext == con =>
+                            val size = cn.argNames.size
+                            if (size == 0){
+                              var temp: Any = ""
+                              urlMapModel.keys.foreach{
+                                i =>
+                                  if(i == con){
+                                    temp = urlMapModel(i)
+                                  }
+                              }
+                              IndexMap.keys.foreach{
+                                IndexMapK =>
+                                  IndexMap(IndexMapK).foreach{
+                                    IndexMapV =>
+                                      IndexMapV.keys.foreach{
+                                        i =>
+                                          if(IndexMapV(i) == con){
+                                            IndexMapV(i) = temp
+                                          }
+                                      }
+                                  }
+                              }
+                            }
+                            if (size == 1){
+                              var flag = true
+                              /*********************/
+                              var temp: Any = ""
+                              urlMapModel.keys.foreach{
+                                i =>
+                                  if(i == con){
+                                    temp = urlMapModel(i)
+                                    IndexMap.keys.foreach{
+                                      IndexMapK =>
+                                        IndexMap(IndexMapK).foreach{
+                                          IndexMapV =>
+                                            IndexMapV.keys.foreach{
+                                              i =>
+                                                if(IndexMapV(i) == con){
+                                                  IndexMapV(i) = temp
+                                                  flag = false
+                                                }
+                                            }
+                                        }
+                                    }
+                                  }
+                              }
 
-            if (gisnode.node.node.asInstanceOf[ICFGInvokeNode].getCalleeSig == new Signature("Ljava/io/FileOutputStream;.write:([B)V")|gisnode.node.node.asInstanceOf[ICFGInvokeNode].getCalleeSig == new Signature("Ljava/io/BufferedWriter;.write:(Ljava/lang/String;)V")){
-              val invNode = gisnode.node.node.asInstanceOf[ICFGInvokeNode]
-              val connSlot = VarSlot(invNode.argNames.head)
-              val connValues = idfg.ptaresult.pointsToSet(invNode.getContext, connSlot)
+                              /************************/
+                              if (flag == true){
+                                val urlSlot2 = VarSlot(cn.argNames.head)
+                                val urls2 = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot2)
+                                for(url <- urls2) {
+                                  IndexMap.keys.foreach{
+                                    IndexMapK =>
+                                      IndexMap(IndexMapK).foreach{
+                                        IndexMapV =>
+                                          IndexMapV.keys.foreach{
+                                            i =>
+                                              if(IndexMapV(i) == con){
+                                                if(url.isInstanceOf[PTAConcreteStringInstance]){
+                                                  val urlvaluestring = url.asInstanceOf[PTAConcreteStringInstance].string
+                                                  val loc = url.asInstanceOf[PTAConcreteStringInstance].defSite.getCurrentLocUri
+                                                  val map:MMap[Any , Any] = mmapEmpty
+                                                  map.getOrElseUpdate(loc , urlvaluestring)
+                                                  IndexMap(IndexMapK) += map
+                                                }else if (url.isInstanceOf[Instance])
+                                                {
+                                                  val urlvaluedef = url.asInstanceOf[Instance].defSite
+                                                  val loc = url.asInstanceOf[Instance].defSite.getCurrentLocUri
+                                                  val map:MMap[Any , Any] = mmapEmpty
+                                                  map.getOrElseUpdate(loc , urlvaluedef)
+                                                  IndexMap(IndexMapK) += map
+                                                }else{
+                                                  val urlvalueelse = "ANY"
+                                                  IndexMapV(i) = urlvalueelse
+                                                }
+                                              }
+                                          }
+                                      }
+                                  }
+                                }
+                                IndexMap.keys.foreach{
+                                  IndexMapK =>
+                                    IndexMap(IndexMapK).foreach{
+                                      IndexMapV =>
+                                        IndexMapV.keys.foreach{
+                                          i =>
+                                            if(IndexMapV(i) == con){
+                                              IndexMap(IndexMapK) -= IndexMapV
+                                            }
+                                        }
+                                    }
+                                }
+                              }
 
-              connValues foreach {
-                urlValue =>
-                  println("URL value at " + gisnode.descriptor + "@" + gisnode.node.node.getContext.getLocUri + "\nis:\n" + urlMap3.getOrElse(urlValue.defSite, msetEmpty).mkString("\n"))
+                            }
+                            if (size == 2){
+                              var flag = true
+                              /*********************/
+                              var temp: Any = ""
+                              urlMapModel.keys.foreach{
+                                i =>
+                                  if(i == con){
+                                    temp = urlMapModel(i)
+                                    IndexMap.keys.foreach{
+                                      IndexMapK =>
+                                        IndexMap(IndexMapK).foreach{
+                                          IndexMapV =>
+                                            IndexMapV.keys.foreach{
+                                              i =>
+                                                if(IndexMapV(i) == con){
+                                                  IndexMapV(i) = temp
+                                                  flag = false
+                                                }
+                                            }
+                                        }
+                                    }
+                                  }
+                              }
+
+
+                              /************************/
+                              if (flag == true){
+                                val urlSlot = VarSlot(cn.argNames.head)
+                                val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
+                                val strSlot = VarSlot(cn.argNames(1))
+                                val urlvalues = idfg.ptaresult.pointsToSet(cn.getContext , strSlot)
+                                for(url <- urlvalues /*++ urls*/) {
+                                  IndexMap.keys.foreach{
+                                    IndexMapK =>
+                                      IndexMap(IndexMapK).foreach{
+                                        IndexMapV =>
+                                          IndexMapV.keys.foreach{
+                                            i =>
+                                              if(IndexMapV(i) == con){
+                                                if(url.isInstanceOf[PTAConcreteStringInstance]){
+                                                  val urlvaluestring = url.asInstanceOf[PTAConcreteStringInstance].string
+                                                  val loc = url.asInstanceOf[PTAConcreteStringInstance].defSite.getCurrentLocUri
+                                                  val map:MMap[Any , Any] = mmapEmpty
+                                                  map.getOrElseUpdate(loc , urlvaluestring)
+                                                  IndexMap(IndexMapK) += map
+                                                }else if (url.isInstanceOf[Instance])
+                                                {
+                                                  val urlvaluedef = url.asInstanceOf[Instance].defSite
+                                                  val loc = url.asInstanceOf[Instance].defSite.getCurrentLocUri
+                                                  val map:MMap[Any , Any] = mmapEmpty
+                                                  map.getOrElseUpdate(loc , urlvaluedef)
+                                                  IndexMap(IndexMapK) += map
+                                                }
+                                              }
+                                          }
+                                      }
+                                  }
+                                }
+                                IndexMap.keys.foreach{
+                                  IndexMapK =>
+                                    IndexMap(IndexMapK).foreach{
+                                      IndexMapV =>
+                                        IndexMapV.keys.foreach{
+                                          i =>
+                                            if(IndexMapV(i) == con){
+                                              IndexMap(IndexMapK) -= IndexMapV
+                                            }
+                                        }
+                                    }
+                                }
+                              }
+
+                            }
+                            if (size == 3){
+                              var flag = true
+                              /*********************/
+                              var temp: Any = ""
+                              urlMapModel.keys.foreach{
+                                i =>
+                                  if(i == con){
+                                    temp = urlMapModel(i)
+                                    IndexMap.keys.foreach{
+                                      IndexMapK =>
+                                        IndexMap(IndexMapK).foreach{
+                                          IndexMapV =>
+                                            IndexMapV.keys.foreach{
+                                              i =>
+                                                if(IndexMapV(i) == con){
+                                                  IndexMapV(i) = temp
+                                                  flag = false
+                                                }
+                                            }
+                                        }
+                                    }
+                                  }
+                              }
+
+                              /************************/
+                              if (flag == true){
+                                val urlSlot = VarSlot(cn.argNames.head)
+                                val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
+                                val strSlot3 = VarSlot(cn.argNames(1))
+                                val urlvalues3 = idfg.ptaresult.pointsToSet(cn.getContext , strSlot3)
+                                val strSlot4 = VarSlot(cn.argNames(2))
+                                val urlvalues4 = idfg.ptaresult.pointsToSet(cn.getContext , strSlot4)
+                                for(url <- urlvalues3 ++ urlvalues4) {
+                                  IndexMap.keys.foreach{
+                                    IndexMapK =>
+                                      IndexMap(IndexMapK).foreach{
+                                        IndexMapV =>
+                                          IndexMapV.keys.foreach{
+                                            i =>
+                                              if(IndexMapV(i) == con){
+                                                if(url.isInstanceOf[PTAConcreteStringInstance]){
+                                                  val urlvaluestring = url.asInstanceOf[PTAConcreteStringInstance].string
+                                                  val loc = url.asInstanceOf[PTAConcreteStringInstance].defSite.getCurrentLocUri
+                                                  val map:MMap[Any , Any] = mmapEmpty
+                                                  map.getOrElseUpdate(loc , urlvaluestring)
+                                                  IndexMap(IndexMapK) += map
+                                                }else if (url.isInstanceOf[Instance])
+                                                {
+                                                  val urlvaluedef = url.asInstanceOf[Instance].defSite
+                                                  val loc = url.asInstanceOf[Instance].defSite.getCurrentLocUri
+                                                  val map:MMap[Any , Any] = mmapEmpty
+                                                  map.getOrElseUpdate(loc , urlvaluedef)
+                                                  IndexMap(IndexMapK) += map
+                                                }else{
+                                                  val urlvalueelse = "ANY"
+                                                  IndexMapV(i) = urlvalueelse
+                                                }
+                                              }
+                                          }
+                                      }
+                                  }
+                                }
+                                IndexMap.keys.foreach{
+                                  IndexMapK =>
+                                    IndexMap(IndexMapK).foreach{
+                                      IndexMapV =>
+                                        IndexMapV.keys.foreach{
+                                          i =>
+                                            if(IndexMapV(i) == con){
+                                              IndexMap(IndexMapK) -= IndexMapV
+                                            }
+                                        }
+                                    }
+                                }
+                              }
+
+                            }
+                          case _ =>
+                        }
+                    }
+                  }
+                  context1.foreach{
+                    i =>
+                      i match{
+                        case i1: Context =>
+                        case i2: String => context1 -= i2
+                        case _ =>
+                      }
+                  }
+
+                  var temp: Any = ""
+                  context1.foreach{
+                    con =>
+                      urlMapModel.keys.foreach{
+                        i =>
+                          if(i == con){
+                            temp = urlMapModel(i)
+                            IndexMap.keys.foreach{
+                              IndexMapK =>
+                                IndexMap(IndexMapK).foreach{
+                                  IndexMapV =>
+                                    IndexMapV.keys.foreach{
+                                      i =>
+                                        if(IndexMapV(i) == con){
+                                          IndexMapV(i) = temp
+                                        }
+                                    }
+                                }
+                            }
+                          }
+                      }
+                  }
+                  /******************Link map with map*************************/
+                  var loop: MSet[Any] = msetEmpty
+                  L.foreach{
+                    l =>
+                      IndexMap3.keys.foreach{
+                        IxMapK =>
+                          IndexMap3(IxMapK).foreach{
+                            i =>
+                              i.keys.foreach{
+                                j =>
+                                  if(j == l && !loop.contains(j)){
+                                    urlMapPlus3.getOrElseUpdate(IxMapK, mlistEmpty) += i(j)
+                                    loop += j
+                                  }
+                              }
+
+                          }
+                      }
+                  }
+                  var loop2: MSet[Any] = msetEmpty
+                  IndexMap.keys.foreach{
+                    IxMapK =>
+                      L.foreach{
+                        loop2 = msetEmpty
+                        l =>
+                          IndexMap(IxMapK).foreach{
+                            i =>
+                              i.keys.foreach{
+                                j =>
+                                  if(j == l && !loop2.contains(j)){
+                                    urlMapPlus.getOrElseUpdate(IxMapK, mlistEmpty) += i(j)
+                                    loop2 += j
+                                  }
+                              }
+                          }
+                      }
+                  }
+                  /******************* Print file's name value *********************/
+                  /*val gnpath = taint_analysis_result.getTaintedPaths.filter{
+                    taintpath =>
+                      taintpath.getSink.node.node match {
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/FileOutputStream;.write:([B)V") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/FileWriter;.write:(Ljava/lang/String;)V") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/BufferedWriter;.write:(Ljava/lang/String;)V") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/RandomAccessFile;.writeChar:(I)V") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/DataOutputStream;.writeBytes:(Ljava/lang/String;)V") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/content/SharedPreferences$Editor;.putString:(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/content/SharedPreferences$Editor;.putInt:(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/content/SharedPreferences$Editor;.putBoolean:(Ljava/lang/String;Z)Landroid/content/SharedPreferences$Editor;") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.insert:(Ljava/lang/String;Ljava/lang/String;Landroid/content/ContentValues;)J") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.update:(Ljava/lang/String;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I") =>
+                          true
+                        case _ => false
+                      }
+
+                  }
+                  val gisNodes = gnpath.map( i => i.getSink)*/
+                  val gisNodes = taint_analysis_result.getSinkNodes.filter{
+                    node =>
+                      node.node.node match {
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/FileOutputStream;.write:([B)V") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/FileWriter;.write:(Ljava/lang/String;)V") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/BufferedWriter;.write:(Ljava/lang/String;)V") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/RandomAccessFile;.writeChar:(I)V") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Ljava/io/DataOutputStream;.writeBytes:(Ljava/lang/String;)V") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/content/SharedPreferences$Editor;.putString:(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/content/SharedPreferences$Editor;.putInt:(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/content/SharedPreferences$Editor;.putBoolean:(Ljava/lang/String;Z)Landroid/content/SharedPreferences$Editor;") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.insert:(Ljava/lang/String;Ljava/lang/String;Landroid/content/ContentValues;)J") =>
+                          true
+                        case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.update:(Ljava/lang/String;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I") =>
+                          true
+                        case _ => false
+                      }
+                  }
+                  //if (compNum == realcompNnm){
+                  println("*****************************************************")
+                  gisNodes.foreach {
+                    gisnode =>
+                      if (gisnode.node.node.asInstanceOf[ICFGInvokeNode].getCalleeSig == new Signature("Ljava/io/FileWriter;.write:(Ljava/lang/String;)V")
+                        | gisnode.node.node.asInstanceOf[ICFGInvokeNode].getCalleeSig == new Signature("Landroid/content/SharedPreferences$Editor;.putBoolean:(Ljava/lang/String;Z)Landroid/content/SharedPreferences$Editor;")
+                        |gisnode.node.node.asInstanceOf[ICFGInvokeNode].getCalleeSig == new Signature("Landroid/content/SharedPreferences$Editor;.putString:(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;")
+                        |gisnode.node.node.asInstanceOf[ICFGInvokeNode].getCalleeSig == new Signature("Ljava/io/BufferedWriter;.write:(Ljava/lang/String;)V")
+                        |gisnode.node.node.asInstanceOf[ICFGInvokeNode].getCalleeSig == new Signature("Ljava/io/FileOutputStream;.write:([B)V")){
+                        val invNode = gisnode.node.node.asInstanceOf[ICFGInvokeNode]
+                        val connSlot = VarSlot(invNode.argNames.head)
+                        val connValues = idfg.ptaresult.pointsToSet(invNode.getContext, connSlot)
+
+                        connValues foreach {
+                          urlValue =>
+                            println("File's name at " + gisnode.descriptor + "@" + gisnode.node.node.getContext.getLocUri + "\nis:\n" + urlMapPlus.getOrElse(urlValue.defSite, mlistEmpty).mkString("\n")/*urlMap.getOrElse(urlValue.defSite, msetEmpty).mkString("\n")*/)
+                        }
+                      }
+                      if (gisnode.node.node.asInstanceOf[ICFGInvokeNode].getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.update:(Ljava/lang/String;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I") |
+                        gisnode.node.node.asInstanceOf[ICFGInvokeNode].getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.insert:(Ljava/lang/String;Ljava/lang/String;Landroid/content/ContentValues;)J")){
+                        val invNode = gisnode.node.node.asInstanceOf[ICFGInvokeNode]
+                        val connValues:MSet[Context] = msetEmpty
+                        connValues += invNode.getContext
+                        connValues foreach {
+                          urlValue =>
+                            println("DB Table's name at " + gisnode.descriptor + "@" + gisnode.node.node.getContext.getLocUri + "\nis:\n" + urlMapPlus.getOrElse(urlValue, mlistEmpty).mkString("\n"))
+                            println("DB Table's structure " + "\nis:\n" + IndexMap2(urlMapPlus.getOrElse(urlValue, mlistEmpty).mkString))
+                            println("DB Table's Database's name " + "\nmaybe is one of the following items:\n" + DB_Name.mkString(","))
+                        }
+                      }
+                  }
+                  println("Done!" +"\n"+ "*****************************************************")
+                //}
+
+                /*}catch{
+                case e : Exception => println("There is some thing wrong with some component's taint analysis ：" + e)
+                }*/
+                case None =>
+                  yard.reporter.error("TaintAnalysis", "Component " + iComponents + " did not have environment! Some package or name mismatch maybe in the Manifest file.")
               }
-            }
-            if (gisnode.node.node.asInstanceOf[ICFGInvokeNode].getCalleeSig == new Signature("Ljava/io/FileWriter;.write:(Ljava/lang/String;)V")){
-              val invNode = gisnode.node.node.asInstanceOf[ICFGInvokeNode]
-              val connSlot = VarSlot(invNode.argNames.head)
-              val connValues = idfg.ptaresult.pointsToSet(invNode.getContext, connSlot)
-
-              connValues foreach {
-                urlValue =>
-                  println("URL value at " + gisnode.descriptor + "@" + gisnode.node.node.getContext.getLocUri + "\nis:\n" + urlMap.getOrElse(urlValue.defSite, msetEmpty).mkString("\n"))
-              }
-            }
+            //}
         }
-        println("Done!" +"\n"+ "*****************************************************")
-      case None =>
-        yard.reporter.error("TaintAnalysis", "Component " + component + " did not have environment! Some package or name mismatch maybe in the Manifest file.")
+        //}
     }
-  }
+    //}
+  //}
 }
