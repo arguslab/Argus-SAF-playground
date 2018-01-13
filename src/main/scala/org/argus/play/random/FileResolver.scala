@@ -20,7 +20,17 @@ import org.argus.jawa.alir.reachability
 import org.argus.jawa.alir.reachability.ReachabilityAnalysis
 
 import scala.collection.GenSet
-
+/**
+  *FileResolver is used to find the files which contain sensitive information and it also find flie's path and name.
+  *FileResolver can resolve the files being created by
+  * .getDefaultSharedPreferences(),.getSharedPreferences(" ",  ),new FileOutputStream(),new OutputStreamWriter(),new BufferedWriter(),new File()
+  * and the database file
+  * class a extends SQLiteOpenHelper {
+    a(Context arg4) {
+        super(arg4, "downloadsDB", null, 1);
+    }
+  * @author <a href="mailto:tong.zh@foxmail.com">Tong Zhu</a>
+  */
 object FileResolver {
   class ListNode(value : Context){
     val v = value
@@ -41,10 +51,9 @@ object FileResolver {
       }
     }
   }
-  def main(args: Array[String]): Unit = {
+  def main(args: Array[String]):  Unit = {
     val fileUri = FileUtil.toUri(args(0))
     val outputUri = FileUtil.toUri(args(1))
-
     /******************* Load APK *********************/
 
     val reporter = new DefaultReporter
@@ -55,15 +64,11 @@ object FileResolver {
     val apk = yard.loadApk(fileUri, settings, collectInfo = true, resolveCallBack = true)
 
     /******************* Do Taint analysis *********************/
-    val ListNodeSet : MSet[ListNode] = msetEmpty
-    val ChildNodeSet : MSet[ListNode] = msetEmpty
-    val urlMap: MMap[Context, MSet[Any]] = mmapEmpty
+    val listNodeSet : MSet[ListNode] = msetEmpty
+    val childNodeSet : MSet[ListNode] = msetEmpty
     val urlMapPlus: MMap[Context, MList[Any]] = mmapEmpty
-    val urlMap2: MMap[Context, Context] = mmapEmpty
     val urlMap2Plus: MMap[Context, MSet[Any]] = mmapEmpty
-    val urlMap3: MMap[Context, MSet[Any]] = mmapEmpty
     var test3 : MSet[Any] = msetEmpty
-    var test4 : MSet[Any] = msetEmpty
     val IntersectSet : GenSet[Signature] = GenSet(new Signature("Ljava/io/Writer;.write:(Ljava/lang/String;)V"),
      new Signature("Landroid/content/Intent;.putExtra:(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;"),
       new Signature("Ljava/io/FileWriter;.<init>:(Ljava/lang/String;)V"),
@@ -103,11 +108,6 @@ object FileResolver {
     val IndexMap3: MMap[Context, MSet[MMap[Any, Any]]] = mmapEmpty
     val urlMapPlus3: MMap[Context, MList[Any]] = mmapEmpty
     val YourForNum: Int = 5
-    /*urlMapSignature = urlMapSignature ++ Map(new Signature("Landroid/os/Environment;.getExternalStorageDirectory:()Ljava/io/File;") -> "sdcard/ ",
-      "Landroid/content/Context;.getPackageName:()Ljava/lang/String;" -> "getPackageName(which can be resolved in the new version)/ ",
-      "Ljava/util/Date;.<init>:()V" -> "DataTme ",
-      "Landroid/content/Context;.getPackageName:()Ljava/lang/String;" -> "PackageName",
-      "wait to perfect" -> "wait to perfect")*/
     var compNum: Int = 0
     val realcompNnm = apk.model.getComponents.size
     apk.model.getComponents.foreach{
@@ -115,11 +115,13 @@ object FileResolver {
         compNum += 1
         var mmapp:IMap[JawaType, ISet[Signature]] = imapEmpty
         mmapp = reachability.ReachabilityAnalysis.getReachableMethodsBySBCG(apk ,Set(iComponents) )
+        /**you can use following codes if you want it to run faster**/
         //mmapp.foreach{
           //case( keys , values) =>
             //if(values.intersect(IntersectSet).nonEmpty){
               apk.model.getEnvMap.get(iComponents) match {
                 case Some((esig, _)) =>
+                  /**you can use following codes if you think your codes may have some errors**/
                   //try {
                   val ep = apk.getMethod(esig).get
                   implicit val heap: SimHeap = new SimHeap
@@ -127,7 +129,7 @@ object FileResolver {
                   val icfg = new InterProceduralControlFlowGraph[ICFGNode]
                   val ptaresult = new PTAResult
                   val sp = new AndroidSummaryProvider(apk)
-                  AndroidReachingFactsAnalysisConfig.resolve_static_init = true
+                  //AndroidReachingFactsAnalysisConfig.resolve_static_init = true
                   val analysis = new AndroidReachingFactsAnalysis(
                     apk, icfg, ptaresult, AndroidModelCallHandler, sp.getSummaryManager, new ClassLoadManager,
                     AndroidReachingFactsAnalysisConfig.resolve_static_init,
@@ -172,7 +174,6 @@ object FileResolver {
                         IndexMap.getOrElseUpdate(url.defSite, msetEmpty) += IndexMap0
                         IndexMap0 = mmapEmpty
                       }
-                    /************************************************************************/
                     case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/content/SharedPreferences$Editor;.putString:(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;") =>
                       val urlSlot = VarSlot(cn.argNames.head)
                       val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
@@ -200,7 +201,6 @@ object FileResolver {
                           IndexMap2.getOrElseUpdate(TBName, structure)
                         }
                       }
-                    /************************************************************************/
                     case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.update:(Ljava/lang/String;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I")|cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.insert:(Ljava/lang/String;Ljava/lang/String;Landroid/content/ContentValues;)J") =>
                       val urlSlot = VarSlot(cn.argNames.head)
                       val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
@@ -225,11 +225,9 @@ object FileResolver {
                         IndexMap0 = mmapEmpty
                       }
                       test7 = msetEmpty
-
                     case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/io/File;.<init>:(Ljava/io/File;Ljava/lang/String;)V")
                       | cn.getCalleeSig == new Signature("Ljava/io/FileWriter;.<init>:(Ljava/io/File;Z)V")=>
                       val urlSlot = VarSlot(cn.argNames.head)
-                      /****cn.getCalleeSig.methodName*********/
                       val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
                       val strSlot = VarSlot(cn.argNames(1))
                       val urlvalues = idfg.ptaresult.pointsToSet(cn.getContext , strSlot)
@@ -261,7 +259,6 @@ object FileResolver {
                         url =>
                           urlMapModel = urlMapModel ++ Map(url -> cn.getOwner.getClassType.getPackageName)
                       )
-
                     case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Ljava/util/Date;.<init>:()V") =>
                       test6 += cn.context
                       val urlSlot = VarSlot(cn.argNames.head)
@@ -287,8 +284,6 @@ object FileResolver {
                           url <- urls) {
                         urlMap17.getOrElseUpdate(url,msetEmpty) += urlvalue
                       }
-
-
                     case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/content/Intent;.getStringExtra:(Ljava/lang/String;)Ljava/lang/String;") =>
                       var self : Set[Context] = Set()
                       self += cn.context
@@ -302,12 +297,7 @@ object FileResolver {
                           url <- self) {
                         urlMap18.getOrElseUpdate(url,urlvalue)
                       }
-
-                    /*******************************************************************/
                     case cn: ICFGCallNode if cn.getCalleeSig == new Signature("Landroid/content/SharedPreferences;.edit:()Landroid/content/SharedPreferences$Editor;") =>
-                      /***************val a = cn.getCalleeSig.getSubSignature
-                        val b = cn.getCalleeSig.getClassName
-                        val c = cn.getCalleeSig.getDescriptor*******************/
                       var selfs : MSet[Context] = msetEmpty
                       selfs += cn.context
                       val urlSlot2 = VarSlot(cn.argNames.head)
@@ -319,6 +309,7 @@ object FileResolver {
                       selfs = msetEmpty
                     case _ =>
                   }
+                  /***make a link in case that there are some functions like "Ljava/io/File;.<init>:(Ljava/io/File;Ljava/lang/String;)V"****/
                   IndexMap.keys.foreach{
                     IndxK0 =>
                       IndexMap.keys.foreach{
@@ -330,18 +321,18 @@ object FileResolver {
                                   if(IndxK0 == IndxMapV(i)){
                                     var LN = new ListNode(IndxK0)
                                     LN.head = new ListNode(IndxK)
-                                    ListNodeSet += LN
+                                    listNodeSet += LN
                                     var LN2 = new ListNode(IndxK)
                                     LN2.child = new ListNode(IndxK0)
-                                    ListNodeSet += LN2
+                                    listNodeSet += LN2
                                   }
                               }
                           }
                       }
                   }
-                  ListNodeSet.foreach{
+                  listNodeSet.foreach{
                     l =>
-                      ListNodeSet.foreach{
+                      listNodeSet.foreach{
                         j =>
                           if (l.head != null && l.head.v == j.v){
                             j.child = l
@@ -350,7 +341,7 @@ object FileResolver {
                           }
                       }
                   }
-                  ListNodeSet.foreach {
+                  listNodeSet.foreach {
                     l =>
                       var finalChild : ListNode = null
                       if(l.child != null){
@@ -361,9 +352,9 @@ object FileResolver {
                       }else{
                         finalChild = l
                       }
-                      ChildNodeSet += finalChild
+                      childNodeSet += finalChild
                   }
-                  ChildNodeSet.foreach{
+                  childNodeSet.foreach{
                     l =>
                       var finalHead : ListNode = l
                       while(finalHead.head != null){
@@ -387,7 +378,7 @@ object FileResolver {
                         finalHead = finalHead.head
                       }
                   }
-                  /********************************************************************/
+                  /*******resolve the names of the files which are created using getSharedPreferences or getDefaultSharedPreferences****/
                   urlMap2Plus.keys.foreach{
                     M2K =>
                       urlMap2Plus(M2K).foreach{
@@ -435,8 +426,7 @@ object FileResolver {
                       }
 
                   }
-                  /*******************************************************************/
-                  /******************ModelMap*************************/
+                  /******************Modeling Map*************************/
                   test3.foreach{//change environment.getExternalStorageDirectory() to "sdcard/"
                     j=>
                       urlMapModel = urlMapModel ++ Map(j -> "sdcard/")
@@ -445,8 +435,7 @@ object FileResolver {
                     j=>
                       urlMapModel = urlMapModel ++ Map(j -> "DateTime ")
                   }
-
-                  /*******************Link Map*****************************/
+                  /*******************Link Map to make a cross component analysis****************************/
                   urlMap17.keys.foreach {
                     i =>
                       urlMap18.keys.foreach {
@@ -481,7 +470,7 @@ object FileResolver {
                       }
                   }
                   /******************Loop*************************/
-                  for(i <- 1 to 5){
+                  for(i <- 1 to 5){//you can change the condition of jumping out of the cycle here
                     IndexMapCopy = IndexMap
                     context1 = msetEmpty
                     IndexMap.keys.foreach{
@@ -522,7 +511,6 @@ object FileResolver {
                             }
                             if (size == 1){
                               var flag = true
-                              /*********************/
                               var temp: Any = ""
                               urlMapModel.keys.foreach{
                                 i =>
@@ -543,8 +531,6 @@ object FileResolver {
                                     }
                                   }
                               }
-
-                              /************************/
                               if (flag == true){
                                 val urlSlot2 = VarSlot(cn.argNames.head)
                                 val urls2 = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot2)
@@ -591,11 +577,10 @@ object FileResolver {
                                     }
                                 }
                               }
-
                             }
+                            /*********************/
                             if (size == 2){
                               var flag = true
-                              /*********************/
                               var temp: Any = ""
                               urlMapModel.keys.foreach{
                                 i =>
@@ -616,9 +601,6 @@ object FileResolver {
                                     }
                                   }
                               }
-
-
-                              /************************/
                               if (flag == true){
                                 val urlSlot = VarSlot(cn.argNames.head)
                                 val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
@@ -664,11 +646,10 @@ object FileResolver {
                                     }
                                 }
                               }
-
                             }
+                            /*********************/
                             if (size == 3){
                               var flag = true
-                              /*********************/
                               var temp: Any = ""
                               urlMapModel.keys.foreach{
                                 i =>
@@ -689,8 +670,6 @@ object FileResolver {
                                     }
                                   }
                               }
-
-                              /************************/
                               if (flag == true){
                                 val urlSlot = VarSlot(cn.argNames.head)
                                 val urls = idfg.ptaresult.pointsToSet(cn.getContext , urlSlot)
@@ -741,12 +720,12 @@ object FileResolver {
                                     }
                                 }
                               }
-
                             }
                           case _ =>
                         }
                     }
                   }
+                  /*******Make sure there is no defsite in file names' Map**************/
                   context1.foreach{
                     i =>
                       i match{
@@ -755,7 +734,6 @@ object FileResolver {
                         case _ =>
                       }
                   }
-
                   var temp: Any = ""
                   context1.foreach{
                     con =>
@@ -778,38 +756,20 @@ object FileResolver {
                           }
                       }
                   }
-                  /******************Link map with map*************************/
+                  /******************Make the output of the files' names with order*************************/
                   var loop: MSet[Any] = msetEmpty
-                  L.foreach{
-                    l =>
-                      IndexMap3.keys.foreach{
-                        IxMapK =>
-                          IndexMap3(IxMapK).foreach{
-                            i =>
-                              i.keys.foreach{
-                                j =>
-                                  if(j == l && !loop.contains(j)){
-                                    urlMapPlus3.getOrElseUpdate(IxMapK, mlistEmpty) += i(j)
-                                    loop += j
-                                  }
-                              }
-
-                          }
-                      }
-                  }
-                  var loop2: MSet[Any] = msetEmpty
                   IndexMap.keys.foreach{
                     IxMapK =>
                       L.foreach{
-                        loop2 = msetEmpty
+                        loop = msetEmpty
                         l =>
                           IndexMap(IxMapK).foreach{
                             i =>
                               i.keys.foreach{
                                 j =>
-                                  if(j == l && !loop2.contains(j)){
+                                  if(j == l && !loop.contains(j)){
                                     urlMapPlus.getOrElseUpdate(IxMapK, mlistEmpty) += i(j)
-                                    loop2 += j
+                                    loop += j
                                   }
                               }
                           }
@@ -903,7 +863,6 @@ object FileResolver {
                   }
                   println("Done!" +"\n"+ "*****************************************************")
                 //}
-
                 /*}catch{
                 case e : Exception => println("There is some thing wrong with some component's taint analysis ：" + e)
                 }*/
