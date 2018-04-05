@@ -3,6 +3,8 @@ import sbt.Keys._
 import sbtassembly.AssemblyPlugin.autoImport._
 import sbtbuildinfo.BuildInfoPlugin.autoImport._
 
+resolvers := Seq("Repo Realm" at "http://oss.jfrog.org/artifactory/oss-snapshot-local")
+
 val argusSafPlaySettings = Defaults.coreDefaultSettings ++ Seq(
   libraryDependencies += "org.scala-lang" % "scala-compiler" % ArgusVersions.scalaVersion,
   scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
