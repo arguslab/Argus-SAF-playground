@@ -29,7 +29,7 @@ lazy val argus_saf_play: Project =
     .settings(assemblySettings)
     .settings(
       artifact in (Compile, assembly) ~= { art =>
-        art.copy(`classifier` = Some("assembly"))
+        art.withClassifier(Some("assembly"))
       },
       addArtifact(artifact in (Compile, assembly), assembly),
       publishArtifact in (Compile, packageBin) := false,
