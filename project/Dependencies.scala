@@ -1,8 +1,8 @@
 import sbt._
 
 object ArgusVersions {
-  val scalaVersion = "2.12.2"
-  val sbtVersion = "0.13.13"
+  val scalaVersion = "2.12.4"
+  val sbtVersion = "1.1.1"
 }
 
 object Dependencies {
