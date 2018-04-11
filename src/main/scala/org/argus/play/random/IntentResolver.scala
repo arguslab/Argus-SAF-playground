@@ -49,7 +49,7 @@ object IntentResolver  {
 
           /** ***************** Resolve Intent **********************/
           implicit val heap: SimHeap = new SimHeap
-          val handler: AndroidModelCallHandler.type = AndroidModelCallHandler
+          val handler: AndroidModelCallHandler = new AndroidModelCallHandler
           val sm: SummaryManager = new AndroidSummaryProvider(apk).getSummaryManager
           val analysis = new BottomUpSummaryGenerator[Global](apk, sm, handler,
             PTSummary(_, _),

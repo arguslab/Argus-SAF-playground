@@ -46,7 +46,7 @@ class TaintAnalysis {
         val ptaresult = new PTAResult
         val sp = new AndroidSummaryProvider(apk)
         val analysis = new AndroidReachingFactsAnalysis(
-          apk, icfg, ptaresult, AndroidModelCallHandler, sp.getSummaryManager, new ClassLoadManager,
+          apk, icfg, ptaresult, new AndroidModelCallHandler, sp.getSummaryManager, new ClassLoadManager,
           AndroidReachingFactsAnalysisConfig.resolve_static_init,
           timeout = None)
         val idfg = analysis.build(ep, initialfacts, new Context(apk.nameUri))
