@@ -19,9 +19,8 @@ val assemblySettings = Seq(
   mainClass in assembly := Some("org.argus.play.cli.Main")
 )
 
-
 lazy val argus_saf_play: Project =
-  newProject("Argus-SAF-playground", file("."))
+  newProject("argus-saf-playground", file("."))
     .enablePlugins(BuildInfoPlugin)
     .settings(libraryDependencies ++= DependencyGroups.saf_play)
     .settings(argusSafPlaySettings)
