@@ -11,7 +11,6 @@ import org.argus.jawa.alir.Context
 import org.argus.jawa.alir.cfg.{ICFGNode, InterProceduralControlFlowGraph}
 import org.argus.jawa.alir.dda.InterProceduralDataDependenceAnalysis
 import org.argus.jawa.alir.pta.PTAResult
-import org.argus.jawa.alir.pta.rfa.SimHeap
 import org.argus.jawa.core.util.FileUtil
 import org.argus.jawa.core.{ClassLoadManager, DefaultReporter}
 
@@ -40,7 +39,6 @@ class TaintAnalysis {
     apk.model.getEnvMap.get(component) match {
       case Some((esig, _)) =>
         val ep = apk.getMethod(esig).get
-        implicit val heap: SimHeap = new SimHeap
         val initialfacts = AndroidReachingFactsAnalysisConfig.getInitialFactsForMainEnvironment(ep)
         val icfg = new InterProceduralControlFlowGraph[ICFGNode]
         val ptaresult = new PTAResult
