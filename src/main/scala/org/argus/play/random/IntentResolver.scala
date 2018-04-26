@@ -12,7 +12,6 @@ import org.argus.amandroid.core.model.Intent
 import org.argus.amandroid.summary.wu.IntentWu
 import org.argus.jawa.alir.Context
 import org.argus.jawa.alir.pta.PTASlot
-import org.argus.jawa.alir.pta.rfa.SimHeap
 import org.argus.jawa.alir.reachability.SignatureBasedCallGraph
 import org.argus.jawa.core.{DefaultReporter, Global, Signature}
 import org.argus.jawa.core.util._
@@ -48,7 +47,6 @@ object IntentResolver  {
           outApkUri = apk.model.layout.outputSrcUri
 
           /** ***************** Resolve Intent **********************/
-          implicit val heap: SimHeap = new SimHeap
           val handler: AndroidModelCallHandler = new AndroidModelCallHandler
           val sm: SummaryManager = new AndroidSummaryProvider(apk).getSummaryManager
           val analysis = new BottomUpSummaryGenerator[Global](apk, sm, handler,

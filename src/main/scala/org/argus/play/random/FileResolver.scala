@@ -12,7 +12,6 @@ import org.argus.amandroid.core.decompile.{DecompileLayout, DecompileStrategy, D
 import org.argus.jawa.alir.Context
 import org.argus.jawa.alir.cfg.{ICFGCallNode, ICFGInvokeNode, ICFGNode, InterProceduralControlFlowGraph}
 import org.argus.jawa.alir.dda.InterProceduralDataDependenceAnalysis
-import org.argus.jawa.alir.pta.rfa.SimHeap
 import org.argus.jawa.alir.pta.{Instance, PTAConcreteStringInstance, PTAResult, VarSlot}
 import org.argus.jawa.core._
 import org.argus.jawa.core.util.{ISortedMap, MSet, _}
@@ -124,7 +123,6 @@ object FileResolver {
                   /**you can use following codes if you think your codes may have some errors**/
                   //try {
                   val ep = apk.getMethod(esig).get
-                  implicit val heap: SimHeap = new SimHeap
                   val initialfacts = AndroidReachingFactsAnalysisConfig.getInitialFactsForMainEnvironment(ep)
                   val icfg = new InterProceduralControlFlowGraph[ICFGNode]
                   val ptaresult = new PTAResult
