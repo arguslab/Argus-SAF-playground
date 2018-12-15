@@ -68,6 +68,7 @@ object FileResolver {
     val urlMapPlus: MMap[Context, MList[Any]] = mmapEmpty
     val urlMap2Plus: MMap[Context, MSet[Any]] = mmapEmpty
     var test3 : MSet[Any] = msetEmpty
+    /**IntersectSet is to make it quicker by doing a initial screening, make line 123~125 non annotated if you want to use it**/
     val IntersectSet : GenSet[Signature] = GenSet(new Signature("Ljava/io/Writer;.write:(Ljava/lang/String;)V"),
       new Signature("Landroid/content/Intent;.putExtra:(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;"),
       new Signature("Ljava/io/FileWriter;.<init>:(Ljava/lang/String;)V"),
@@ -90,7 +91,8 @@ object FileResolver {
       new Signature("Landroid/content/SharedPreferences$Editor;.putInt:(Ljava/lang/String;I)Landroid/content/SharedPreferences$Editor;"),
       new Signature("Landroid/content/SharedPreferences$Editor;.putBoolean:(Ljava/lang/String;Z)Landroid/content/SharedPreferences$Editor;"),
       new Signature("Landroid/database/sqlite/SQLiteDatabase;.insert:(Ljava/lang/String;Ljava/lang/String;Landroid/content/ContentValues;)J"),
-      new Signature("Landroid/database/sqlite/SQLiteDatabase;.update:(Ljava/lang/String;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I"))
+      new Signature("Landroid/database/sqlite/SQLiteDatabase;.update:(Ljava/lang/String;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I"),
+      new Signature("Landroid/database/sqlite/SQLiteDatabase;.execSQL:(Ljava/lang/String;"))
     var test6 : MSet[Any] = msetEmpty
     var test7 : MSet[Context] = msetEmpty
     var test8 : MSet[Context] = msetEmpty
@@ -123,19 +125,21 @@ object FileResolver {
         //if(values.intersect(IntersectSet).nonEmpty){
         apk.model.getEnvMap.get(iComponents) match {
           case Some((esig, _)) =>
-            /**you can use following codes if you think your codes may have some errors**/
+            /**You can use following codes if you think your codes may have some errors**/
             //try {
             val ep = apk.getMethod(esig).get
             val initialfacts = AndroidReachingFactsAnalysisConfig.getInitialFactsForMainEnvironment(ep)
             val icfg = new InterProceduralControlFlowGraph[ICFGNode]
             val ptaresult = new PTAResult
             val sp = new AndroidSummaryProvider(apk)
+            /**Make line 136 non annotated if you want analyse static variables**/
             //AndroidReachingFactsAnalysisConfig.resolve_static_init = true
             val analysis = new AndroidReachingFactsAnalysis(
               apk, icfg, ptaresult, new AndroidModelCallHandler, sp.getSummaryManager, new ClassLoadManager,
               AndroidReachingFactsAnalysisConfig.resolve_static_init,
               timeout = None)
             val idfg = analysis.build(ep, initialfacts, new Context(apk.nameUri))
+            /**Make line 143~146 non annotated if you want to see the intermediate result**/
             //idfg.ptaresult.pprint()
             //print("==========================================" + "\n")
             //idfg.icfg.toDot(new PrintWriter(System.out))
@@ -466,7 +470,7 @@ object FileResolver {
                   finalHead = finalHead.head
                 }
             }
-            /*******resolve the names of the files which are created using getSharedPreferences or getDefaultSharedPreferences****/
+            /*******Resolve the names of the files which are created using getSharedPreferences or getDefaultSharedPreferences****/
             urlMap2Plus.keys.foreach{
               M2K =>
                 urlMap2Plus(M2K).foreach{
@@ -558,7 +562,7 @@ object FileResolver {
                     }
                 }
             }
-            /******************Loop*************************/
+            /******************Loop to ensure that there is no defsite in final result*************************/
             for(i <- 1 to 5){//you can change the condition of jumping out of the cycle here
               IndexMapCopy = IndexMap
               context1 = msetEmpty
@@ -888,11 +892,14 @@ object FileResolver {
                     true
                   case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.update:(Ljava/lang/String;Landroid/content/ContentValues;Ljava/lang/String;[Ljava/lang/String;)I") =>
                     true
+                  case cn: ICFGInvokeNode if cn.getCalleeSig == new Signature("Landroid/database/sqlite/SQLiteDatabase;.execSQL:(Ljava/lang/String;)V") =>
+                    true
                   case _ => false
                 }
 
             }
             val gisNodes = gnpath.map( i => i.getSink)
+            /**You can choose the codes below to run in order to analyse all the sinks instead of only the sinks in taint path**/
             /*val gisNodes = taint_analysis_result.getSinkNodes.filter{
               node =>
                 node.node.node match {
@@ -969,9 +976,9 @@ object FileResolver {
                     test8 += invNode.getContext
                     test8 foreach {
                       urlValue =>
-                        println("DB Table's name at " + gisnode.descriptor + "@" + gisnode.node.node.getContext.getLocUri + "\nis:\n" + urlMapPlus.getOrElse(urlValue, mlistEmpty).mkString("\n"))
-                        println("DB Table's structure " + "\nis:\n" + IndexMap2(urlMapPlus.getOrElse(urlValue, mlistEmpty).mkString))
-                        println("DB Table's Database's name maybe is one of the following items:\n" + DB_Name.mkString(","))
+                        println("DB table's name at " + gisnode.descriptor + "@" + gisnode.node.node.getContext.getLocUri + "\nis:\n" + urlMapPlus.getOrElse(urlValue, mlistEmpty).mkString("\n"))
+                        println("DB table's structure " + "\nis:\n" + IndexMap2(urlMapPlus.getOrElse(urlValue, mlistEmpty).mkString))
+                        println("DB table's Database's name maybe is one of the following items:\n" + DB_Name.mkString(","))
                     }
                     test8 = msetEmpty
                   }
@@ -984,9 +991,9 @@ object FileResolver {
                   connValues += invNode.getContext
                   connValues foreach {
                     urlValue =>
-                      println("DB Table's name at " + gisnode.descriptor + "@" + gisnode.node.node.getContext.getLocUri + "\nis:\n" + urlMapPlus.getOrElse(urlValue, mlistEmpty).mkString("\n"))
-                      println("DB Table's structure " + "\nis:\n" + IndexMap2(urlMapPlus.getOrElse(urlValue, mlistEmpty).mkString))
-                      println("DB Table's Database's name maybe is one of the following items:\n" + DB_Name.mkString(","))
+                      println("DB table's name at " + gisnode.descriptor + "@" + gisnode.node.node.getContext.getLocUri + "\nis:\n" + urlMapPlus.getOrElse(urlValue, mlistEmpty).mkString("\n"))
+                      println("DB table's structure " + "\nis:\n" + IndexMap2(urlMapPlus.getOrElse(urlValue, mlistEmpty).mkString))
+                      println("DB table's database's name maybe is one of the following items:\n" + DB_Name.mkString(","))
                   }
                 }
             }
